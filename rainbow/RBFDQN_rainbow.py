@@ -366,8 +366,5 @@ if __name__ == '__main__':
                     episode, numpy.mean(temp)))
             G_li.append(numpy.mean(temp))
             utils_for_q_learning.save(G_li, loss_li, params, alg)
-        if ((episode%10==0) or episode == (params['max_episode'] + 1)):
-            torch.save(Q_object.state_dict(), 
-            'logs/double_hyper_' + str(params['hyper_parameters_name']) + '_' + str(episode) + "_seed_" + str(params['seed_number']))
-            torch.save(Q_object_target.state_dict(), 
-            'logs/double_target_hyper_' + str(params['hyper_parameters_name']) + '_' + str(episode) + "_seed_" + str(params['seed_number']))
+        
+        

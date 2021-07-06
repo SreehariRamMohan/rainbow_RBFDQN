@@ -107,6 +107,13 @@ def save(li_returns, li_loss, params, alg):
 	else: 
 		numpy.savetxt(directory + str(params['seed_number']) + ".txt", li_loss)
 
+	# In addition to logging the results above, we will also log them in the results/<experiment_name>/<run_title> folder
+
+	directory2 = params["full_experiment_file_path"]
+	numpy.savetxt(directory2 + "/rewards_seed" + str(params['seed_number']) + ".txt", li_returns)
+	numpy.savetxt(directory2 + "/loss_seed" + str(params['seed_number']) + ".txt", li_loss)
+
+
 def set_random_seed(meta_params):
 	seed_number = meta_params['seed_number']
 	import numpy

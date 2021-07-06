@@ -40,6 +40,8 @@ if __name__ == "__main__":
                         help="subdirectory for this run",
                         required=True)
 
+    parser.add_argument("--log", action="store_true")
+
     parser.add_argument("--double", 
                         action="store_true",
                         default=False,
@@ -49,7 +51,6 @@ if __name__ == "__main__":
                     type=int,
                     default=-1,
                     help="run using multi-step returns of size n")
-
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -64,12 +65,14 @@ if __name__ == "__main__":
     params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, "rbf")
 
     params['hyper_parameters_name'] = args.hyper_parameter_name
+    params['full_experiment_file_path'] = os.path.join(os.getcwd(), full_experiment_name)
 
     for arg_name, arg_value in other_args:
         utils.update_param(params, arg_name, arg_value)
     params['hyperparams_dir'] = hyperparams_dir
     params['start_time'] = str(datetime.datetime.now())
     params['seed_number'] = args.seed
+    params['log'] = args.log
 
     # Rainbow RBF-DQN improvements
     params['double'] = args.double
@@ -100,10 +103,6 @@ if __name__ == "__main__":
 
     params['env'] = env
 
-    if len(sys.argv) > 3:
-        params['save_prepend'] = str(sys.argv[3])
-        print("Save prepend is ", params['save_prepend'])
-
     utils_for_q_learning.set_random_seed(params)
     s0 = env.reset()
     utils_for_q_learning.action_checker(env)
@@ -124,6 +123,15 @@ if __name__ == "__main__":
                                        online=Q_object,
                                        alpha=params['target_network_learning_rate'],
                                        copy=True)
+
+    breakpoint()
+    # Logging with Meta Logger
+
+    meta_logger = MetaLogger(full_experiment_name)
+    logging_filename = f"seed_{args.seed}.pkl"
+
+    meta_logger.add_field("evaluation_rewards", logging_filename)
+    meta_logger.add_field("average_loss", logging_filename)
 
     G_li = []
     loss_li = []
@@ -152,6 +160,7 @@ if __name__ == "__main__":
             loss.append(temp)
 
         loss_li.append(numpy.mean(loss))
+        meta_logger.append_datapoint("average_loss", numpy.mean(loss))
 
         if (episode % 10 == 0) or (episode == params['max_episode'] - 1):
             temp = []
@@ -167,9 +176,16 @@ if __name__ == "__main__":
                     episode, numpy.mean(temp)))
             G_li.append(numpy.mean(temp))
             utils_for_q_learning.save(G_li, loss_li, params, "rbf")
-        # TODO use meta logger to save the model state dict every 10 episodes
-        # if ((episode%10==0) or episode == (params['max_episode'] + 1)):
-        #     torch.save(Q_object.state_dict(), 
-        #     'logs/double_hyper_' + str(params['hyper_parameters_name']) + '_' + str(episode) + "_seed_" + str(params['seed_number']))
-        #     torch.save(Q_object_target.state_dict(), 
-        #     'logs/double_target_hyper_' + str(params['hyper_parameters_name']) + '_' + str(episode) + "_seed_" + str(params['seed_number']))
+            meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
+
+        if(params["log"] or ((episode%50==0) or episode == (params['max_episode'] + 1))): 
+            path = os.path.join(params["full_experiment_file_path"], "logs")
+            if not os.path.exists(path):
+                try:
+                    os.makedirs(path, exist_ok=True)
+                except OSError:
+                    print("Creation of the directory %s failed" % path)
+                else:
+                    print("Successfully created the directory %s " % path)
+            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode)))
+            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode)))
