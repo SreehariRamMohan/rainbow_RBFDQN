@@ -1,10 +1,33 @@
-#### A few example of run commands
+### Rainbow RBFDQN
 
-`python experiments/experiment1.py --hyper_parameter_name 00 --experiment_name ./results/testing --run_title testing --learning_rate 100.0`
+Run flags: 
 
-Run only a Double RBF-DQN experiment: 
-python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double
+`--seed <seed_num>`
 
-Run a Double & Nstep returns experiment with step size 3:
+`--experiment_name <exp_name>` 
+Usually use something like `results/experiment1`, to create a new folder in the results root directory. 
 
-python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double --nstep 3
+`--run_title <run_title>`
+Creates a sub-folder under the results/<exp_name>/ directory and stores all the logs, hyperparameters, and meta logger information here. 
+
+`--log` 
+Use this flag if you want to store model checkpoint files for the network & target network. Files are stored under `results/<exp_name>/<run_title>/logs`
+
+`--double` 
+If you want to use double DQN
+
+`--nstep <step_size>`
+If you want to use multi step returns
+
+`--dueling` 
+If you want to use a dueling architecture.
+
+`--mean` 
+By default the dueling architecture uses the max combine operator to merge the base value and advantage values. You can use the mean as the combine operator with this flag (default is max)
+
+### Example Run Commands
+`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double`
+
+`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double --nstep 3`
+
+`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --per --dueling`

@@ -336,12 +336,26 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
 
         if (self.params["double"]):
-            _, actions = self.get_best_qvalue_and_action(sp_matrix)
-            target_centroids = target_Q.get_centroid_locations(sp_matrix)
-            centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
-            centroid_values = target_Q.get_centroid_values(sp_matrix)
-            output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
-            Q_star = output.sum(1, keepdim=True)  # [batch x 1]
+            if not self.params['dueling']:
+                _, actions = self.get_best_qvalue_and_action(sp_matrix)
+                target_centroids = target_Q.get_centroid_locations(sp_matrix)
+                centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
+                centroid_values = target_Q.get_centroid_values(sp_matrix)
+                output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
+                Q_star = output.sum(1, keepdim=True)  # [batch x 1]
+            else:
+                _, actions = self.get_best_qvalue_and_action(sp_matrix)
+                target_centroids = target_Q.get_centroid_locations(sp_matrix)
+                centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
+                
+                centroid_advantages = target_Q.get_centroid_advantages(sp_matrix)
+                state_value = target_Q.get_state_value(sp_matrix)
+                if self.params["dueling_combine_operator"] == 'mean':
+                    centroid_values = state_value + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
+                elif self.params["dueling_combine_operator"] == 'max':
+                    centroid_values = state_value + (centroid_advantages - torch.max(centroid_advantages, dim=1, keepdim=True)[0])
+                output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
+                Q_star = output.sum(1, keepdim=True)  # [batch x 1]
         else:
             Q_star, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
 
