@@ -72,15 +72,36 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
-        self.value_module = nn.Sequential(
-            nn.Linear(self.state_size, self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.N),
-        )
+        if not self.params['dueling']:
+            self.value_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.N),
+            )
+        else:
+            self.featureExtraction_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+            )
+
+            self.advantage_module = nn.Sequential(
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.N),
+            )
+
+            self.baseValue_module = nn.Sequential(
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], 1),
+            )
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
@@ -115,12 +136,27 @@ class Net(nn.Module):
 
         self.criterion = nn.MSELoss()
 
-        self.params_dic = [{
-            'params': self.value_module.parameters(), 'lr': self.params['learning_rate']
-        },
+        if not self.params['dueling']:
+            self.params_dic = [{
+                'params': self.value_module.parameters(), 'lr': self.params['learning_rate']
+            },
             {
                 'params': self.location_module.parameters(),
                 'lr': self.params['learning_rate_location_side']
+            }]
+        else:
+            self.params_dic = [
+            {
+                'params': self.advantage_module.parameters(), 'lr': self.params['learning_rate']
+            },
+            {
+                'params': self.location_module.parameters(), 'lr': self.params['learning_rate_location_side']
+            },
+            {
+                'params': self.baseValue_module.parameters(), 'lr': self.params['learning_rate']
+            },
+            {
+                'params': self.featureExtraction_module.parameters(), 'lr': self.params['learning_rate']
             }]
         try:
             if self.params['optimizer'] == 'RMSprop':
@@ -134,6 +170,28 @@ class Net(nn.Module):
 
         self.to(self.device)
 
+    ### dueling specific methods (below)
+    def get_centroid_advantages(self, s):
+        '''
+        given a batch of s, get centroid advantage values, [batch x N]
+        '''
+        assert self.params['dueling']
+
+        features = self.featureExtraction_module(s)
+        centroid_advantages = self.advantage_module(features)
+        return centroid_advantages
+
+    def get_state_value(self, s):
+        '''
+        given a batch of s, get the base value for each state [batch x N]
+        '''
+        assert self.params['dueling']
+
+        features = self.featureExtraction_module(s)
+        value = self.baseValue_module(features)
+        return value
+    ### dueling specific methods above ^
+    
     def get_centroid_values(self, s):
         '''
 		given a batch of s, get all centroid values, [batch x N]
@@ -153,10 +211,20 @@ class Net(nn.Module):
 		given a batch of states s, return Q(s,a), max_{a} ([batch x 1], [batch x a_dim])
 		'''
         all_centroids = self.get_centroid_locations(s)
-        values = self.get_centroid_values(s)
         weights = rbf_function(all_centroids, all_centroids, self.beta)  # [batch x N x N]
 
+        if not self.params['dueling']:
+            values = self.get_centroid_values(s)
+        else:
+            centroid_advantages = self.get_centroid_advantages(s)
+            state_value = self.get_state_value(s)
+            if self.params["dueling_combine_operator"] == 'mean':
+                values = state_value + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
+            elif self.params["dueling_combine_operator"] == 'max':
+                values = state_value + (centroid_advantages - torch.max(centroid_advantages, dim=1, keepdim=True)[0])
+        
         allq = torch.bmm(weights, values.unsqueeze(2)).squeeze(2)  # bs x num_centroids
+
         # a -> all_centroids[idx] such that idx is max(dim=1) in allq
         # a = torch.gather(all_centroids, dim=1, index=indices)
         # (dim: bs x 1, dim: bs x action_dim)
@@ -174,7 +242,14 @@ class Net(nn.Module):
         '''
 		given a batch of s,a , compute Q(s,a) [batch x 1]
 		'''
-        centroid_values = self.get_centroid_values(s)  # [batch_dim x N]
+        if not self.params['dueling']:
+            centroid_values = self.get_centroid_values(s)  # [batch_dim x N]
+        else:
+            centroid_advantages = self.get_centroid_advantages(s)
+            if self.params["dueling_combine_operator"] == 'mean':
+                centroid_values = self.get_state_value(s) + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
+            elif self.params["dueling_combine_operator"] == 'max':
+                centroid_values = self.get_state_value(s) + (centroid_advantages - torch.max(centroid_advantages, dim=1, keepdim=True)[0])
         centroid_locations = self.get_centroid_locations(s)
         # [batch x N]
 

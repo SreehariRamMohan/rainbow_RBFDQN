@@ -45,7 +45,7 @@ if __name__ == "__main__":
     parser.add_argument("--double", 
                         action="store_true",
                         default=False,
-                        help="run using double q network")
+                        help="run using double DQN")
 
     parser.add_argument("--nstep", 
                     type=int,
@@ -57,6 +57,19 @@ if __name__ == "__main__":
                 default=False,
                 help="run using Priority Experience Replay (PER)")
 
+    parser.add_argument("--dueling", 
+            action="store_true",
+            default=False,
+            help="run using dueling architecture")
+
+    parser.add_argument("--mean",
+            action="store_true",
+            default=False,
+            help=
+            """use the mean combine operator to  
+            combine advantage and base value 
+            (otherwise max is used by default""")
+    
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -79,6 +92,7 @@ if __name__ == "__main__":
     params['seed_number'] = args.seed
     params['log'] = args.log
     params['per'] = args.per
+    params['dueling'] = args.dueling
 
     # Rainbow RBF-DQN improvements
     params['double'] = args.double
@@ -95,6 +109,13 @@ if __name__ == "__main__":
 
     print("PER:", params["per"])    
     # continue adding Rainbow RBFDQN flags for ablations here.
+
+    if (args.mean and params['dueling']):
+        params["dueling_combine_operator"] = "mean"
+    else:
+        params["dueling_combine_operator"] = "max"
+    
+    print("Dueling:", params['dueling'], "Combine Operator:", params['dueling_combine_operator'])
 
     utils.save_hyper_parameters(params, args.seed)
 
