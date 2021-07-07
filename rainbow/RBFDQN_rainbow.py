@@ -3,8 +3,6 @@ import sys
 import time
 import random
 import os
-#TODO remove this sys path append, can be solved with pip install -e
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -69,7 +67,8 @@ class Net(nn.Module):
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'])
+            seed_number=self.params['seed_number'],
+            params=params)
 
         self.state_size, self.action_size = state_size, action_size
 
@@ -245,7 +244,12 @@ class Net(nn.Module):
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
             return 0
-        s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+
+        if self.params['per']:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
+        else:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+        
         r_matrix = numpy.clip(r_matrix,
                               a_min=-self.params['reward_clip'],
                               a_max=self.params['reward_clip'])
@@ -266,10 +270,19 @@ class Net(nn.Module):
         else:
             Q_star, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
 
+        if self.params['nstep']:
+            Q_star = (self.params["gamma"]**(self.params['nstep_size']-1)) * Q_star
+        
         Q_star = Q_star.reshape((self.params['batch_size'], -1))
+
         with torch.no_grad():
             y = r_matrix + self.params['gamma'] * (1 - done_matrix) * Q_star
         y_hat = self.forward(s_matrix, a_matrix)
+
+        if self.params['per']:
+            td_error = torch.abs(y-y_hat).cpu().detach().numpy()
+            self.buffer_object.storage.update_priorities(indexes, td_error)
+
         loss = self.criterion(y_hat, y)
         self.zero_grad()
         loss.backward()

@@ -52,6 +52,11 @@ if __name__ == "__main__":
                     default=-1,
                     help="run using multi-step returns of size n")
 
+    parser.add_argument("--per", 
+                action="store_true",
+                default=False,
+                help="run using Priority Experience Replay (PER)")
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -73,6 +78,7 @@ if __name__ == "__main__":
     params['start_time'] = str(datetime.datetime.now())
     params['seed_number'] = args.seed
     params['log'] = args.log
+    params['per'] = args.per
 
     # Rainbow RBF-DQN improvements
     params['double'] = args.double
@@ -87,7 +93,7 @@ if __name__ == "__main__":
     
     print("Nstep:", params["nstep"], "Nstep_size:", params["nstep_size"])
 
-
+    print("PER:", params["per"])    
     # continue adding Rainbow RBFDQN flags for ablations here.
 
     utils.save_hyper_parameters(params, args.seed)
@@ -124,7 +130,6 @@ if __name__ == "__main__":
                                        alpha=params['target_network_learning_rate'],
                                        copy=True)
 
-    breakpoint()
     # Logging with Meta Logger
 
     meta_logger = MetaLogger(full_experiment_name)
