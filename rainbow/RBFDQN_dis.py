@@ -7,12 +7,11 @@ import sys
 import time
 import numpy
 import random
-
+import argparse
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from common import utils_for_q_learning, buffer_class
+from common import utils_for_q_learning, buffer_class, utils
 
 import torch
 import torch.nn as nn
@@ -70,13 +69,14 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -10, 10
-        self.n_atoms = 51
+        self.v_min, self.v_max = -400, 0
+        self.n_atoms = 151
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'])
+            seed_number=self.params['seed_number'],
+            params=params)
 
         self.state_size, self.action_size = state_size, action_size
 
@@ -310,19 +310,63 @@ class Net(nn.Module):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hyper_parameter_name",
+                        required=True,
+                        help="0, 10, 20, etc. Corresponds to .hyper file",
+                        default="0")  # OpenAI gym environment name
+
+    parser.add_argument("--seed", default=0, help="seed",
+                        type=int)  # Sets Gym, PyTorch and Numpy seeds
+
+    parser.add_argument("--double",
+                        action="store_true",
+                        default=False,
+                        help="run using double DQN")
+
+    parser.add_argument("--nstep",
+                    type=int,
+                    default=-1,
+                    help="run using multi-step returns of size n")
+
+    parser.add_argument("--per",
+                action="store_true",
+                default=False,
+                help="run using Priority Experience Replay (PER)")
+
+    parser.add_argument("--experiment_name",
+                        type=str,
+                        help="Experiment Name",
+                        required=True)
+    parser.add_argument("--run_title",
+                        type=str,
+                        help="subdirectory for this run",
+                        required=True)
+
+
+
+    args, unknown = parser.parse_known_args()
+    full_experiment_name = os.path.join(args.experiment_name, args.run_title)
+    utils.create_log_dir(full_experiment_name)
+    hyperparams_dir = utils.create_log_dir(os.path.join(full_experiment_name, "hyperparams"))
     if torch.cuda.is_available():
         device = torch.device("cuda")
         print("Running on the GPU")
     else:
         device = torch.device("cpu")
         print("Running on the CPU")
-    hyper_parameter_name = sys.argv[1]
+
     alg = 'rbf'
-    params = utils_for_q_learning.get_hyper_parameters(hyper_parameter_name, alg)
-    params['hyper_parameters_name'] = hyper_parameter_name
+    params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, alg)
+    params['hyper_parameters_name'] = args.hyper_parameter_name
+    params['full_experiment_file_path'] = os.path.join(os.getcwd(), full_experiment_name)
     env = gym.make(params["env_name"])
     params['env'] = env
-    params['seed_number'] = int(sys.argv[2])
+    params['seed_number'] = args.seed
+    params['double'] = args.double
+    params['per'] = args.per
+    params['nstep'] = args.nstep
+    params["nstep_size"] = 3
 
     if len(sys.argv) > 3:
         params['save_prepend'] = str(sys.argv[3])
@@ -364,6 +408,7 @@ if __name__ == '__main__':
             elif params['policy_type'] == 'gaussian':
                 a = Q_object.gaussian_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
+            #print("reward:",r)
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
             Q_object.buffer_object.append(s, a, r, done_p, sp)
@@ -391,7 +436,13 @@ if __name__ == '__main__':
             G_li.append(numpy.mean(temp))
             utils_for_q_learning.save(G_li, loss_li, params, alg)
         if ((episode % 10 == 0) or episode == (params['max_episode'] + 1)):
-            torch.save(Q_object.state_dict(),
-                       'logs/pendulum_vanilla_RBFDQN_' + str(episode) + "_seed_" + str(params['seed_number']))
-            torch.save(Q_object_target.state_dict(),
-                       'logs/pendulum_vanilla_RBFDQN_' + str(episode) + "_seed_" + str(params['seed_number']))
+            path = os.path.join(params["full_experiment_file_path"], "logs")
+            if not os.path.exists(path):
+                try:
+                    os.makedirs(path, exist_ok=True)
+                except OSError:
+                    print("Creation of the directory %s failed" % path)
+                else:
+                    print("Successfully created the directory %s " % path)
+            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode)))
+            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode)))
