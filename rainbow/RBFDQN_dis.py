@@ -12,7 +12,7 @@ import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-import utils_for_q_learning, buffer_class
+from common import utils_for_q_learning, buffer_class
 
 import torch
 import torch.nn as nn
