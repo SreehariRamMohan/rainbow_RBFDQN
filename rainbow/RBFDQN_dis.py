@@ -150,10 +150,10 @@ class Net(nn.Module):
         given a batch of s, get all centroid values, [batch x N]
         """
         batch_size = s.shape[0]
-        logits = self.value_module(s).reshape(batch_size, self.N, -1)
+        logits = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
         centroid_distributions = torch.softmax(logits, dim=2)
-        centroid_values = torch.sum(self.value_range.expand(batch_size, self.N, -1) * centroid_distributions, dim=2)
-        return centroid_values
+        centroid_values = torch.sum(self.value_range.expand(batch_size, self.N, -1) * centroid_distributions, dim=2)  # [batch x N x 1]
+        return centroid_values  # [batch x N]
 
     def get_centroid_distributions(self, s):
         batch_size = s.shape[0]
@@ -178,6 +178,7 @@ class Net(nn.Module):
         weights = rbf_function(all_centroids, all_centroids, self.beta)  # [batch x N x N]
 
         allq = torch.bmm(weights, values.unsqueeze(2)).squeeze(2)  # bs x num_centroids
+        alldis = torch.bmm(weights, distribution)
         # a -> all_centroids[idx] such that idx is max(dim=1) in allq
         # a = torch.gather(all_centroids, dim=1, index=indices)
         # (dim: bs x 1, dim: bs x action_dim)
@@ -185,12 +186,12 @@ class Net(nn.Module):
         if s.shape[0] == 1:
             index_star = indices.item()
             a = all_centroids[0, index_star]
-            dis = distribution[0, index_star]
+            dis = alldis[0, index_star]
             return best, dis, a
         else:
-            distribution = torch.index_select(distribution, 1, indices)
-            distribution = torch.diagonal(distribution, dim1=0, dim2=1).T
-            return best, distribution, None
+            dis = torch.index_select(alldis, 1, indices)
+            dis = torch.diagonal(dis, dim1=0, dim2=1).T
+            return best, dis, None
 
     def forward(self, s, a):
         """
@@ -202,7 +203,6 @@ class Net(nn.Module):
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)
         output = torch.mul(centroid_weights.unsqueeze(2), centroid_distributions)  # [batch x N]
         output = output.sum(1)  # [batch x num_atoms]
-        # print(torch.sum(output, 1))
         return output
 
     def e_greedy_policy(self, s, episode, train_or_test):
@@ -292,7 +292,7 @@ class Net(nn.Module):
             offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
-
+        # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
         # loss = self.criterion(y_hat, y.type(torch.float32))
         loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
