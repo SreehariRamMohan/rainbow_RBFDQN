@@ -21,6 +21,7 @@ class NoisyLinear(nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.sigma_init = sigma_init
+        self.training_noise = True
 
         ## Noisy Weights
         self.weights_mu = nn.Parameter(torch.Tensor(output_size, input_size))
@@ -35,6 +36,12 @@ class NoisyLinear(nn.Module):
         ## Reset the weights, bias, and noise
         self.reset_parameters()
         self.reset_noise()
+
+    def train_noise(self):
+        self.training_noise = True
+
+    def eval_noise(self):
+        self.training_noise = False
 
     def reset_parameters(self):
         mu_range = 1 / np.sqrt(self.input_size)
@@ -52,7 +59,7 @@ class NoisyLinear(nn.Module):
 
     def forward(self, inputs):
         ## Note: this depends on whether train() or eval() is called
-        if self.training:
+        if self.training or self.training_noise:
             return F.linear(inputs, self.weights_mu + self.weights_sigma * self.weight_epsilon, self.bias_mu + self.bias_sigma * self.bias_epsilon)
         else:
             return F.linear(inputs, self.weights_mu, self.bias_mu)

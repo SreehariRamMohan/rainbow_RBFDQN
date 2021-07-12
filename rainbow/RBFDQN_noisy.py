@@ -79,10 +79,13 @@ class Net(nn.Module):
 
         self.value_module = nn.Sequential(
             nn.Linear(self.state_size, self.params['layer_size']),
+            nn.LayerNorm(self.params['layer_size']),
             nn.ReLU(),
             NoisyLinear(self.params['layer_size'], self.params['layer_size']),
+            nn.LayerNorm(self.params['layer_size']),
             nn.ReLU(),
             NoisyLinear(self.params['layer_size'], self.params['layer_size']),
+            nn.LayerNorm(self.params['layer_size']),
             nn.ReLU(),
             NoisyLinear(self.params['layer_size'], self.N),
         )
@@ -90,6 +93,7 @@ class Net(nn.Module):
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                nn.LayerNorm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
                 NoisyLinear(self.params['layer_size_action_side'],
@@ -100,10 +104,12 @@ class Net(nn.Module):
         elif self.params['num_layers_action_side'] == 2:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                nn.LayerNorm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
                 NoisyLinear(self.params['layer_size_action_side'],
                           self.params['layer_size_action_side']),
+                nn.LayerNorm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
                 NoisyLinear(self.params['layer_size_action_side'],
@@ -188,13 +194,39 @@ class Net(nn.Module):
         output = output.sum(1, keepdim=True)  # [batch x 1]
         return output
 
+    def train_noisy(self):
+        """
+        Serves same purpose as .train(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def train_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.train_noise()
+
+        train_module_noise(self.value_module)
+        train_module_noise(self.location_module)
+
+    def eval_noisy(self):
+        """
+        Serves same purpose as .eval(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def eval_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.eval_noise()
+
+        eval_module_noise(self.value_module)
+        eval_module_noise(self.location_module)
+
     def reset_noise(self):
         """
         Iterates through each module in the network and calls reset_noise() on any
         layer that is a NoisyLinear layer
         """
         def reset_module_noise(module):
-            for m in self.value_module:
+            for m in module:
                 if isinstance(m, (NoisyLinear,)):
                     m.reset_noise()
 
@@ -216,19 +248,21 @@ class Net(nn.Module):
 
     def noisy_policy(self, s, episode, train_or_test):
         '''
-        Evalutes the policy, used in noisynet setup
+        Evaluates the policy, used in noisynet setup
         '''
         if train_or_test == 'train':
-            self.train()  ## set self.train flags in modules
+            self.train_noisy()  ## set self.train flags in modules
         else:
-            self.eval()
+            self.eval_noisy()
 
+        self.eval()
         s_matrix = np.array(s).reshape(1, self.state_size)
         with torch.no_grad():
             s = torch.from_numpy(s_matrix).float().to(self.device)
             _, a = self.get_best_qvalue_and_action(s)
             a = a.cpu().numpy()
         self.train()
+        self.train_noisy()  ## set self.train flags in modules
         return a
 
     def e_greedy_policy(self, s, episode, train_or_test):
