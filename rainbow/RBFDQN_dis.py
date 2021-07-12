@@ -7,18 +7,19 @@ import sys
 import time
 import numpy
 import random
-import argparse
+
 import os
 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from common import utils_for_q_learning, buffer_class, utils
+import utils_for_q_learning, buffer_class, utils
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy
-import pickle
+import argparse
 
 
 def rbf_function_on_action(centroid_locations, action, beta):
@@ -69,28 +70,49 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -400, 0
-        self.n_atoms = 151
+        self.v_min, self.v_max = -10, 10
+        self.n_atoms = 51
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'],
-            params=params)
+            seed_number=self.params['seed_number'])
 
         self.state_size, self.action_size = state_size, action_size
 
         self.value_range = torch.linspace(self.v_min, self.v_max, self.n_atoms).to(self.device)
 
-        self.value_module = nn.Sequential(
-            nn.Linear(self.state_size, self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.N * self.n_atoms),
-        )
+        self.params_dic = []
+
+        if self.params['dueling']:
+            self.featureExtraction_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+            )
+            self.baseValue_module = nn.Sequential(
+                nn.Linear(self.params['layer_size'], self.n_atoms)  # [batch_size x num_atoms], needs to be expanded in dimension 1
+            )
+            self.advantage_module = nn.Sequential(
+                nn.Linear(self.params['layer_size'], self.N * self.n_atoms)  # [batch_size x N x num_atoms]
+            )
+            self.params_dic.append({'params': self.featureExtraction_module.parameters(), 'lr': self.params['learning_rate']})
+            self.params_dic.append({'params': self.baseValue_module.parameters(), 'lr': self.params['learning_rate']})
+            self.params_dic.append({'params': self.advantage_module.parameters(), 'lr': self.params['learning_rate']})
+        else:
+            self.value_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.N * self.n_atoms),
+            )
+            self.params_dic.append({'params': self.value_module.parameters(), 'lr': self.params['learning_rate']})
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
@@ -114,6 +136,7 @@ class Net(nn.Module):
                 # shape: [batch x num_centroids x action_size]
                 nn.Tanh(),
             )
+        self.params_dic.append({'params': self.location_module.parameters(), 'lr': self.params['learning_rate_location_side']})
 
         torch.nn.init.xavier_uniform_(self.location_module[0].weight)
         torch.nn.init.zeros_(self.location_module[0].bias)
@@ -122,17 +145,6 @@ class Net(nn.Module):
         self.location_module[3].bias.data.uniform_(-1., 1.)
 
         self.criterion = nn.CrossEntropyLoss()
-
-        self.params_dic = [
-            {
-              'params': self.value_module.parameters(),
-              'lr': self.params['learning_rate']
-            },
-            {
-                'params': self.location_module.parameters(),
-                'lr': self.params['learning_rate_location_side']
-            }
-        ]
         try:
             if self.params['optimizer'] == 'RMSprop':
                 self.optimizer = optim.RMSprop(self.params_dic)
@@ -150,14 +162,32 @@ class Net(nn.Module):
         given a batch of s, get all centroid values, [batch x N]
         """
         batch_size = s.shape[0]
-        logits = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
+        if self.params['dueling']:  # dueling needs to be computed for two situations
+            features = self.featureExtraction_module(s)
+            baseValue = self.baseValue_module(features).reshape(batch_size, 1, -1)  # [batch x 1 x n_atoms]
+            advantages = self.advantage_module(features).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
+            if self.params["dueling_combine_operator"] == 'mean':
+                logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
+            elif self.params["dueling_combine_operator"] == 'max':
+                logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
+        else:
+            logits = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
         centroid_distributions = torch.softmax(logits, dim=2)
         centroid_values = torch.sum(self.value_range.expand(batch_size, self.N, -1) * centroid_distributions, dim=2)  # [batch x N x 1]
         return centroid_values  # [batch x N]
 
     def get_centroid_distributions(self, s):
         batch_size = s.shape[0]
-        logits = self.value_module(s).reshape(batch_size, self.N, -1)
+        if self.params['dueling']:
+            features = self.featureExtraction_module(s)
+            baseValue = self.baseValue_module(features).reshape(batch_size, 1, -1)  # [batch x 1 x n_atoms]
+            advantages = self.advantage_module(features).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
+            if self.params["dueling_combine_operator"] == 'mean':
+                logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
+            elif self.params["dueling_combine_operator"] == 'max':
+                logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
+        else:
+            logits = self.value_module(s).reshape(batch_size, self.N, -1)
         centroid_distributions = torch.softmax(logits, dim=2)
         return centroid_distributions  # [batch x N x num_atoms]
 
@@ -168,7 +198,7 @@ class Net(nn.Module):
         centroid_locations = self.max_a * self.location_module(s)
         return centroid_locations
 
-    def get_best_qvalue_and_action(self, s):
+    def get_best_qvalue_and_action(self, s, return_all = False):
         """
         given a batch of states s, return Q(s,a), max_{a} ([batch x 1], [batch x a_dim])
         """
@@ -183,15 +213,12 @@ class Net(nn.Module):
         # a = torch.gather(all_centroids, dim=1, index=indices)
         # (dim: bs x 1, dim: bs x action_dim)
         best, indices = allq.max(dim=1)
-        if s.shape[0] == 1:
-            index_star = indices.item()
-            a = all_centroids[0, index_star]
-            dis = alldis[0, index_star]
-            return best, dis, a
-        else:
-            dis = torch.index_select(alldis, 1, indices)
-            dis = torch.diagonal(dis, dim1=0, dim2=1).T
-            return best, dis, None
+        a = torch.index_select(all_centroids, 1, indices) # This way of indexing works for both cases
+        a = torch.diagonal(a, dim1=0, dim2=1).T
+        dis = torch.index_select(alldis, 1, indices)
+        dis = torch.diagonal(dis, dim1=0, dim2=1).T
+
+        return best, dis, a, {"alldis": alldis, "indices": indices}
 
     def forward(self, s, a):
         """
@@ -275,10 +302,17 @@ class Net(nn.Module):
         r_matrix = torch.from_numpy(r_matrix).float().to(self.device)
         done_matrix = torch.from_numpy(done_matrix).float().to(self.device)
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
-
         # Q_star = Q_star.reshape((self.params['batch_size'], -1))
         with torch.no_grad():
-            best, dis, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
+            if params['double']:
+                _, _, _, info = self.get_best_qvalue_and_action(sp_matrix) # get indices from the online agent
+                indices = info["indices"]
+                _, _, _, info = target_Q.get_best_qvalue_and_action(sp_matrix)
+                alldis = info["alldis"]
+                dis = torch.index_select(alldis, 1, indices)
+                dis = torch.diagonal(dis, dim1=0, dim2=1).T
+            else:
+                best, dis, a, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
             next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
             # compute the distribution for actions
             y = torch.zeros((batch_size, self.n_atoms)).to(self.device)
@@ -324,6 +358,16 @@ if __name__ == '__main__':
                         default=False,
                         help="run using double DQN")
 
+    parser.add_argument("--dueling",
+                        action="store_true",
+                        default=True,
+                        help="run using dueling architecture")
+
+    parser.add_argument("--dueling_combine_operator",
+                        action="store_true",
+                        default="mean",
+                        help="the operator for dueling")
+
     parser.add_argument("--nstep",
                     type=int,
                     default=-1,
@@ -342,7 +386,6 @@ if __name__ == '__main__':
                         type=str,
                         help="subdirectory for this run",
                         required=True)
-
 
 
     args, unknown = parser.parse_known_args()
@@ -364,6 +407,8 @@ if __name__ == '__main__':
     params['env'] = env
     params['seed_number'] = args.seed
     params['double'] = args.double
+    params['dueling'] = args.dueling
+    params['dueling_combine_operator'] = args.dueling_combine_operator
     params['per'] = args.per
     params['nstep'] = args.nstep
     params["nstep_size"] = 3
