@@ -11,7 +11,7 @@ import numpy
 import pickle
 import numpy as np
 from common import utils_for_q_learning, buffer_class
-
+from common.noisy_layer import NoisyLinear
 
 def rbf_function_on_action(centroid_locations, action, beta):
     '''
@@ -72,43 +72,63 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
+        def layer_norm(s):
+            if self.params['layer_normalization']:
+                return (nn.LayerNorm(s),)
+            else:
+                return tuple()
+
+        def noisy_linear(dim_in, dim_out):
+            if self.params['noisy_layers']:
+                return NoisyLinear(dim_in, dim_out)
+            else:
+                return nn.Linear(dim_in, dim_out)
+
         if not self.params['dueling']:
             self.value_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.N),
+                noisy_linear(self.params['layer_size'], self.N),
             )
         else:
             self.featureExtraction_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
             )
 
             self.advantage_module = nn.Sequential(
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.N),
+                noisy_linear(self.params['layer_size'], self.N),
             )
 
             self.baseValue_module = nn.Sequential(
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], 1),
+                noisy_linear(self.params['layer_size'], 1),
             )
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 nn.Tanh(),
@@ -116,13 +136,15 @@ class Net(nn.Module):
         elif self.params['num_layers_action_side'] == 2:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 nn.Tanh(),
@@ -131,8 +153,9 @@ class Net(nn.Module):
         torch.nn.init.xavier_uniform_(self.location_module[0].weight)
         torch.nn.init.zeros_(self.location_module[0].bias)
 
-        self.location_module[3].weight.data.uniform_(-.1, .1)
-        self.location_module[3].bias.data.uniform_(-1., 1.)
+        if not self.params['noisy_layers']
+            self.location_module[3].weight.data.uniform_(-.1, .1)
+            self.location_module[3].bias.data.uniform_(-1., 1.)
 
         self.criterion = nn.MSELoss()
 
@@ -258,43 +281,107 @@ class Net(nn.Module):
         output = output.sum(1, keepdim=True)  # [batch x 1]
         return output
 
+    def train_noisy(self):
+        """
+        Serves same purpose as .train(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def train_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.train_noise()
+
+        train_module_noise(self.value_module)
+        train_module_noise(self.location_module)
+
+    def eval_noisy(self):
+        """
+        Serves same purpose as .eval(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def eval_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.eval_noise()
+
+        eval_module_noise(self.value_module)
+        eval_module_noise(self.location_module)
+
+    def reset_noise(self):
+        """
+        Iterates through each module in the network and calls reset_noise() on any
+        layer that is a NoisyLinear layer
+        """
+        def reset_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.reset_noise()
+
+        if not self.params['dueling']:
+            reset_module_noise(self.value_module)
+        else:
+            reset_module_noise(self.featureExtraction_module)
+            reset_module_noise(self.advantage_module)
+            reset_module_noise(self.baseValue_module)
+
+        reset_module_noise(self.location_module)
+
+    def policy(self, s, episode, train_or_test):
+        '''
+        Evalutes the policy
+        '''
+        self.eval()
+        s_matrix = np.array(s).reshape(1, self.state_size)
+        with torch.no_grad():
+            s = torch.from_numpy(s_matrix).float().to(self.device)
+            _, a = self.get_best_qvalue_and_action(s)
+            a = a.cpu().numpy()
+        self.train()
+        return a
+
+    def noisy_policy(self, s, episode, train_or_test):
+        '''
+        Evaluates the policy, used in noisynet setup
+        '''
+        if train_or_test == 'train':
+            self.train_noisy()  ## set self.train flags in modules
+        else:
+            self.eval_noisy()
+
+        self.eval()
+        s_matrix = np.array(s).reshape(1, self.state_size)
+        with torch.no_grad():
+            s = torch.from_numpy(s_matrix).float().to(self.device)
+            _, a = self.get_best_qvalue_and_action(s)
+            a = a.cpu().numpy()
+        self.train()
+        self.train_noisy()  ## set self.train flags in modules
+        return a
+
     def e_greedy_policy(self, s, episode, train_or_test):
         '''
-		Given state s, at episode, take random action with p=eps if training
-		Note - epsilon is determined by episode
-		'''
-        epsilon = 1.0 / numpy.power(episode, 1.0 / self.params['policy_parameter'])
+        Given state s, at episode, take random action with p=eps if training 
+        Note - epsilon is determined by episode
+        '''
+        epsilon = 1.0 / np.power(episode, 1.0 / self.params['policy_parameter'])
         if train_or_test == 'train' and random.random() < epsilon:
             a = self.env.action_space.sample()
             return a.tolist()
         else:
-            self.eval()
-            s_matrix = numpy.array(s).reshape(1, self.state_size)
-            with torch.no_grad():
-                s = torch.from_numpy(s_matrix).float().to(self.device)
-                _, a = self.get_best_qvalue_and_action(s)
-                a = a.cpu().numpy()
-            self.train()
-            return a
+            return self.policy(s, episode, train_or_test)
 
     def e_greedy_gaussian_policy(self, s, episode, train_or_test):
         '''
-		Given state s, at episode, take random action with p=eps if training
-		Note - epsilon is determined by episode
-		'''
-        epsilon = 1.0 / numpy.power(episode, 1.0 / self.params['policy_parameter'])
+        Given state s, at episode, take random action with p=eps if training 
+        Note - epsilon is determined by episode
+        '''
+        epsilon = 1.0 / np.power(episode, 1.0 / self.params['policy_parameter'])
         if train_or_test == 'train' and random.random() < epsilon:
             a = self.env.action_space.sample()
             return a.tolist()
         else:
-            self.eval()
-            s_matrix = numpy.array(s).reshape(1, self.state_size)
-            with torch.no_grad():
-                s = torch.from_numpy(s_matrix).float().to(self.device)
-                _, a = self.get_best_qvalue_and_action(s)
-                a = a.cpu().numpy()
-            self.train()
-            noise = numpy.random.normal(loc=0.0,
+            a = self.policy(s, episode, train_or_test)
+            noise = np.random.normal(loc=0.0,
                                         scale=self.params['noise'],
                                         size=len(a))
             a = a + noise
@@ -302,17 +389,11 @@ class Net(nn.Module):
 
     def gaussian_policy(self, s, episode, train_or_test):
         '''
-		Given state s, at episode, take random action with p=eps if training
-		Note - epsilon is determined by episode
-		'''
-        self.eval()
-        s_matrix = numpy.array(s).reshape(1, self.state_size)
-        with torch.no_grad():
-            s = torch.from_numpy(s_matrix).float().to(self.device)
-            _, a = self.get_best_qvalue_and_action(s)
-            a = a.cpu()
-        self.train()
-        noise = numpy.random.normal(loc=0.0, scale=self.params['noise'], size=len(a))
+        Given state s, at episode, take random action with p=eps if training 
+        Note - epsilon is determined by episode
+        '''
+        a = self.policy(s, episode, train_or_test)
+        noise = np.random.normal(loc=0.0, scale=self.params['noise'], size=len(a))
         a = a + noise
         return a
 
@@ -382,6 +463,10 @@ class Net(nn.Module):
             online=self,
             alpha=self.params['target_network_learning_rate'],
             copy=False)
+
+        if self.params['noisy_layers']:
+            self.reset_noise()
+            target_Q.reset_noise()
         return loss.cpu().data.numpy()
 
 
@@ -435,12 +520,15 @@ if __name__ == '__main__':
 
         s, done, t = env.reset(), False, 0
         while not done:
-            if params['policy_type'] == 'e_greedy':
-                a = Q_object.e_greedy_policy(s, episode + 1, 'train')
-            elif params['policy_type'] == 'e_greedy_gaussian':
-                a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
-            elif params['policy_type'] == 'gaussian':
-                a = Q_object.gaussian_policy(s, episode + 1, 'train')
+            if params['noisy_layers']:
+                a = Q_object.noisy_policy(s, episode + 1, 'train')
+            else:
+                if params['policy_type'] == 'e_greedy':
+                    a = Q_object.e_greedy_policy(s, episode + 1, 'train')
+                elif params['policy_type'] == 'e_greedy_gaussian':
+                    a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
+                elif params['policy_type'] == 'gaussian':
+                    a = Q_object.gaussian_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -459,7 +547,10 @@ if __name__ == '__main__':
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
-                    a = Q_object.e_greedy_policy(s, episode + 1, 'test')
+                    if params['noisy_layers']:
+                        a = Q_object.noisy_policy(s, episode + 1, 'test')
+                    else:
+                        a = Q_object.e_greedy_policy(s, episode + 1, 'test')
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)

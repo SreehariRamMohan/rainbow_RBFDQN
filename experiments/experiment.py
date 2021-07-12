@@ -69,7 +69,21 @@ if __name__ == "__main__":
             """use the mean combine operator to  
             combine advantage and base value 
             (otherwise max is used by default""")
+
+    parser.add_argument("--layer_normalization",
+            action="store_true",
+            default=False,
+            help=
+            """apply normalization immediately
+            prior to activations in any hidden layers""")
     
+    parser.add_argument("--noisy_layers",
+            action="store_true",
+            default=False,
+            help=
+            """use noisy linear layers instead of linear
+            layers for all hidden layers""")
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -116,6 +130,11 @@ if __name__ == "__main__":
         params["dueling_combine_operator"] = "max"
     
     print("Dueling:", params['dueling'], "Combine Operator:", params['dueling_combine_operator'])
+
+    params['layer_normalization'] = args.layer_normalization
+    params['noisy_layers'] = args.noisy_layers
+
+    print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
 
     utils.save_hyper_parameters(params, args.seed)
 
@@ -168,12 +187,15 @@ if __name__ == "__main__":
 
         s, done, t = env.reset(), False, 0
         while not done:
-            if params['policy_type'] == 'e_greedy':
-                a = Q_object.e_greedy_policy(s, episode + 1, 'train')
-            elif params['policy_type'] == 'e_greedy_gaussian':
-                a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
-            elif params['policy_type'] == 'gaussian':
-                a = Q_object.gaussian_policy(s, episode + 1, 'train')
+            if params['noisy_layers']:
+                a = Q_object.noisy_policy(s, episode + 1, 'train')
+            else:
+                if params['policy_type'] == 'e_greedy':
+                    a = Q_object.e_greedy_policy(s, episode + 1, 'train')
+                elif params['policy_type'] == 'e_greedy_gaussian':
+                    a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
+                elif params['policy_type'] == 'gaussian':
+                    a = Q_object.gaussian_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -193,7 +215,10 @@ if __name__ == "__main__":
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
-                    a = Q_object.e_greedy_policy(s, episode + 1, 'test')
+                    if params['noisy_layers']:
+                        a = Q_object.noisy_policy(s, episode + 1, 'test')
+                    else:
+                        a = Q_object.e_greedy_policy(s, episode + 1, 'test')
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)

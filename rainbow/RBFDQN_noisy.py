@@ -77,26 +77,38 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
+        def layer_norm(s):
+            if self.params['layer_normalization']:
+                return (nn.LayerNorm(s),)
+            else:
+                return tuple()
+
+        def noisy_linear(dim_in, dim_out):
+            if self.params['noisy_layers']:
+                return NoisyLinear(dim_in, dim_out)
+            else:
+                return nn.Linear(dim_in, dim_out)
+
         self.value_module = nn.Sequential(
             nn.Linear(self.state_size, self.params['layer_size']),
-            nn.LayerNorm(self.params['layer_size']),
+            *layer_norm(self.params['layer_size']),
             nn.ReLU(),
-            NoisyLinear(self.params['layer_size'], self.params['layer_size']),
-            nn.LayerNorm(self.params['layer_size']),
+            noisy_linear(self.params['layer_size'], self.params['layer_size']),
+            *layer_norm(self.params['layer_size']),
             nn.ReLU(),
-            NoisyLinear(self.params['layer_size'], self.params['layer_size']),
-            nn.LayerNorm(self.params['layer_size']),
+            noisy_linear(self.params['layer_size'], self.params['layer_size']),
+            *layer_norm(self.params['layer_size']),
             nn.ReLU(),
-            NoisyLinear(self.params['layer_size'], self.N),
+            noisy_linear(self.params['layer_size'], self.N),
         )
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
-                nn.LayerNorm(self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                NoisyLinear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 nn.Tanh(),
@@ -104,15 +116,15 @@ class Net(nn.Module):
         elif self.params['num_layers_action_side'] == 2:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
-                nn.LayerNorm(self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                NoisyLinear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.params['layer_size_action_side']),
-                nn.LayerNorm(self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                NoisyLinear(self.params['layer_size_action_side'],
+                noisy_linear(self.params['layer_size_action_side'],
                           self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 nn.Tanh(),
