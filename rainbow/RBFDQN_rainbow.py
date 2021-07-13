@@ -15,13 +15,13 @@ from common.noisy_layer import NoisyLinear
 
 def rbf_function_on_action(centroid_locations, action, beta):
     '''
-	centroid_locations: Tensor [batch x num_centroids (N) x a_dim (action_size)]
-	action_set: Tensor [batch x a_dim (action_size)]
-	beta: float
-		- Parameter for RBF function
+    centroid_locations: Tensor [batch x num_centroids (N) x a_dim (action_size)]
+    action_set: Tensor [batch x a_dim (action_size)]
+    beta: float
+        - Parameter for RBF function
 
-	Description: Computes the RBF function given centroid_locations and one action
-	'''
+    Description: Computes the RBF function given centroid_locations and one action
+    '''
     assert len(centroid_locations.shape) == 3, "Must pass tensor with shape: [batch x N x a_dim]"
     assert len(action.shape) == 2, "Must pass tensor with shape: [batch x a_dim]"
 
@@ -36,14 +36,14 @@ def rbf_function_on_action(centroid_locations, action, beta):
 
 def rbf_function(centroid_locations, action_set, beta):
     '''
-	centroid_locations: Tensor [batch x num_centroids (N) x a_dim (action_size)]
-	action_set: Tensor [batch x num_act x a_dim (action_size)]
-		- Note: pass in num_act = 1 if you want a single action evaluated
-	beta: float
-		- Parameter for RBF function
+    centroid_locations: Tensor [batch x num_centroids (N) x a_dim (action_size)]
+    action_set: Tensor [batch x num_act x a_dim (action_size)]
+        - Note: pass in num_act = 1 if you want a single action evaluated
+    beta: float
+        - Parameter for RBF function
 
-	Description: Computes the RBF function given centroid_locations and some actions
-	'''
+    Description: Computes the RBF function given centroid_locations and some actions
+    '''
     assert len(centroid_locations.shape) == 3, "Must pass tensor with shape: [batch x N x a_dim]"
     assert len(action_set.shape) == 3, "Must pass tensor with shape: [batch x num_act x a_dim]"
 
@@ -217,22 +217,22 @@ class Net(nn.Module):
     
     def get_centroid_values(self, s):
         '''
-		given a batch of s, get all centroid values, [batch x N]
-		'''
+        given a batch of s, get all centroid values, [batch x N]
+        '''
         centroid_values = self.value_module(s)
         return centroid_values
 
     def get_centroid_locations(self, s):
         '''
-		given a batch of s, get all centroid_locations, [batch x N x a_dim]
-		'''
+        given a batch of s, get all centroid_locations, [batch x N x a_dim]
+        '''
         centroid_locations = self.max_a * self.location_module(s)
         return centroid_locations
 
     def get_best_qvalue_and_action(self, s):
         '''
-		given a batch of states s, return Q(s,a), max_{a} ([batch x 1], [batch x a_dim])
-		'''
+        given a batch of states s, return Q(s,a), max_{a} ([batch x 1], [batch x a_dim])
+        '''
         all_centroids = self.get_centroid_locations(s)
         weights = rbf_function(all_centroids, all_centroids, self.beta)  # [batch x N x N]
 
@@ -263,8 +263,8 @@ class Net(nn.Module):
 
     def forward(self, s, a):
         '''
-		given a batch of s,a , compute Q(s,a) [batch x 1]
-		'''
+        given a batch of s,a , compute Q(s,a) [batch x 1]
+        '''
         if not self.params['dueling']:
             centroid_values = self.get_centroid_values(s)  # [batch_dim x N]
         else:
@@ -326,6 +326,19 @@ class Net(nn.Module):
 
         reset_module_noise(self.location_module)
 
+    def execute_policy(self, s, episode, train_or_test):
+        a = None
+        if self.params['noisy_layers']:
+            a = self.noisy_policy(s, episode, train_or_test)
+        else:
+            if self.params['policy_type'] == 'e_greedy':
+                a = self.e_greedy_policy(s, episode, train_or_test)
+            elif self.params['policy_type'] == 'e_greedy_gaussian':
+                a = self.e_greedy_gaussian_policy(s, episode, train_or_test)
+            elif self.params['policy_type'] == 'gaussian':
+                a = self.gaussian_policy(s, episode, train_or_test)
+        return a
+        
     def policy(self, s, episode, train_or_test):
         '''
         Evalutes the policy
@@ -348,13 +361,7 @@ class Net(nn.Module):
         else:
             self.eval_noisy()
 
-        self.eval()
-        s_matrix = np.array(s).reshape(1, self.state_size)
-        with torch.no_grad():
-            s = torch.from_numpy(s_matrix).float().to(self.device)
-            _, a = self.get_best_qvalue_and_action(s)
-            a = a.cpu().numpy()
-        self.train()
+        a = self.policy(s, episode, train_or_test)
         self.train_noisy()  ## set self.train flags in modules
         return a
 
@@ -520,15 +527,7 @@ if __name__ == '__main__':
 
         s, done, t = env.reset(), False, 0
         while not done:
-            if params['noisy_layers']:
-                a = Q_object.noisy_policy(s, episode + 1, 'train')
-            else:
-                if params['policy_type'] == 'e_greedy':
-                    a = Q_object.e_greedy_policy(s, episode + 1, 'train')
-                elif params['policy_type'] == 'e_greedy_gaussian':
-                    a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
-                elif params['policy_type'] == 'gaussian':
-                    a = Q_object.gaussian_policy(s, episode + 1, 'train')
+            a = Q_object.execute_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -547,10 +546,7 @@ if __name__ == '__main__':
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
-                    if params['noisy_layers']:
-                        a = Q_object.noisy_policy(s, episode + 1, 'test')
-                    else:
-                        a = Q_object.e_greedy_policy(s, episode + 1, 'test')
+                    a = Q_object.execute_policy(s, episode + 1, 'test')
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)

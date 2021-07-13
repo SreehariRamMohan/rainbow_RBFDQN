@@ -187,15 +187,7 @@ if __name__ == "__main__":
 
         s, done, t = env.reset(), False, 0
         while not done:
-            if params['noisy_layers']:
-                a = Q_object.noisy_policy(s, episode + 1, 'train')
-            else:
-                if params['policy_type'] == 'e_greedy':
-                    a = Q_object.e_greedy_policy(s, episode + 1, 'train')
-                elif params['policy_type'] == 'e_greedy_gaussian':
-                    a = Q_object.e_greedy_gaussian_policy(s, episode + 1, 'train')
-                elif params['policy_type'] == 'gaussian':
-                    a = Q_object.gaussian_policy(s, episode + 1, 'train')
+            a = Q_object.execute_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -215,10 +207,7 @@ if __name__ == "__main__":
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
-                    if params['noisy_layers']:
-                        a = Q_object.noisy_policy(s, episode + 1, 'test')
-                    else:
-                        a = Q_object.e_greedy_policy(s, episode + 1, 'test')
+                    a = Q_object.execute_policy(s, episode + 1, 'test')
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)

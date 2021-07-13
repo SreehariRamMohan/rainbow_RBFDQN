@@ -25,6 +25,13 @@ If you want to use a dueling architecture.
 `--mean` 
 By default the dueling architecture uses the max combine operator to merge the base value and advantage values. You can use the mean as the combine operator with this flag (default is max)
 
+`--layer_normalization`
+If you want to apply layer normalization on hidden layers, before the activation function
+
+`--noisy_layers`
+If you want noisy linear layers to be used in place of linear layers, and use parameter noise for the exploration strategy
+
+
 ### Example Run Commands
 `python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double`
 
