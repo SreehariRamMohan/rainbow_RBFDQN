@@ -153,7 +153,7 @@ class Net(nn.Module):
         torch.nn.init.xavier_uniform_(self.location_module[0].weight)
         torch.nn.init.zeros_(self.location_module[0].bias)
 
-        if not self.params['noisy_layers']
+        if not self.params['noisy_layers']:
             self.location_module[3].weight.data.uniform_(-.1, .1)
             self.location_module[3].bias.data.uniform_(-1., 1.)
 
