@@ -291,8 +291,14 @@ class Net(nn.Module):
                 if isinstance(m, (NoisyLinear,)):
                     m.train_noise()
 
-        train_module_noise(self.value_module)
-        train_module_noise(self.location_module)
+        if not self.params["dueling"]:
+            train_module_noise(self.value_module)
+            train_module_noise(self.location_module)
+        else:
+            train_module_noise(self.baseValue_module)
+            train_module_noise(self.advantage_module)
+            train_module_noise(self.featureExtraction_module)
+            train_module_noise(self.location_module)
 
     def eval_noisy(self):
         """
@@ -303,9 +309,15 @@ class Net(nn.Module):
             for m in module:
                 if isinstance(m, (NoisyLinear,)):
                     m.eval_noise()
-
-        eval_module_noise(self.value_module)
-        eval_module_noise(self.location_module)
+       
+        if not self.params["dueling"]:
+            eval_module_noise(self.value_module)
+            eval_module_noise(self.location_module)
+        else:
+            eval_module_noise(self.baseValue_module)
+            eval_module_noise(self.advantage_module)
+            eval_module_noise(self.featureExtraction_module)
+            eval_module_noise(self.location_module)
 
     def reset_noise(self):
         """

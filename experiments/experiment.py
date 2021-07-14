@@ -9,6 +9,7 @@ from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
 
 from rainbow.RBFDQN_rainbow import Net
+from rainbow.RBFDQN_dis import Net as DistributionalNet
 
 import torch
 import numpy
@@ -43,27 +44,27 @@ if __name__ == "__main__":
     parser.add_argument("--log", action="store_true")
 
     parser.add_argument("--double", 
-                        action="store_true",
+                        type=utils.boolify,
                         default=False,
                         help="run using double DQN")
 
     parser.add_argument("--nstep", 
                     type=int,
-                    default=-1,
+                    default=1,
                     help="run using multi-step returns of size n")
 
     parser.add_argument("--per", 
-                action="store_true",
+                type=utils.boolify,
                 default=False,
                 help="run using Priority Experience Replay (PER)")
 
     parser.add_argument("--dueling", 
-            action="store_true",
+            type=utils.boolify,
             default=False,
             help="run using dueling architecture")
 
     parser.add_argument("--mean",
-            action="store_true",
+            type=utils.boolify,
             default=False,
             help=
             """use the mean combine operator to  
@@ -71,18 +72,24 @@ if __name__ == "__main__":
             (otherwise max is used by default""")
 
     parser.add_argument("--layer_normalization",
-            action="store_true",
+            type=utils.boolify,
             default=False,
             help=
             """apply normalization immediately
             prior to activations in any hidden layers""")
     
     parser.add_argument("--noisy_layers",
-            action="store_true",
+            type=utils.boolify,
             default=False,
             help=
             """use noisy linear layers instead of linear
             layers for all hidden layers""")
+
+    parser.add_argument("--distributional",
+        type=utils.boolify,
+        default=False,
+        help=
+        """Use Distributional RBF-DQN""")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -107,12 +114,16 @@ if __name__ == "__main__":
     params['log'] = args.log
     params['per'] = args.per
     params['dueling'] = args.dueling
+    params['distributional'] = args.distributional
+
+
+    print("Distributional:", params["distributional"])
 
     # Rainbow RBF-DQN improvements
     params['double'] = args.double
     print("Double:", params["double"])
 
-    if (args.nstep != -1):
+    if (args.nstep != 1):
         params["nstep"] = True
         params["nstep_size"] = args.nstep
     else:
@@ -153,16 +164,29 @@ if __name__ == "__main__":
     s0 = env.reset()
     utils_for_q_learning.action_checker(env)
     
-    Q_object = Net(params,
-                   env,
-                   state_size=len(s0),
-                   action_size=len(env.action_space.low),
-                   device=device)
-    Q_object_target = Net(params,
-                          env,
-                          state_size=len(s0),
-                          action_size=len(env.action_space.low),
-                          device=device)
+    if not params['distributional']: 
+        Q_object = Net(params,
+                    env,
+                    state_size=len(s0),
+                    action_size=len(env.action_space.low),
+                    device=device)
+        Q_object_target = Net(params,
+                            env,
+                            state_size=len(s0),
+                            action_size=len(env.action_space.low),
+                            device=device)
+    else:
+        Q_object = DistributionalNet(params,
+                    env,
+                    state_size=len(s0),
+                    action_size=len(env.action_space.low),
+                    device=device)
+        Q_object_target = DistributionalNet(params,
+                            env,
+                            state_size=len(s0),
+                            action_size=len(env.action_space.low),
+                            device=device)
+    
     Q_object_target.eval()
 
     utils_for_q_learning.sync_networks(target=Q_object_target,
