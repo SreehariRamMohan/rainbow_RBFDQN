@@ -11,8 +11,8 @@ import random
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-
-import utils_for_q_learning, buffer_class, utils
+from common import utils_for_q_learning, buffer_class, utils
+from common.noisy_layer import NoisyLinear
 
 import torch
 import torch.nn as nn
@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy
 import argparse
+import numpy as np
 
 
 def rbf_function_on_action(centroid_locations, action, beta):
@@ -70,13 +71,14 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -10, 10
+        self.v_min, self.v_max = -400, 0
         self.n_atoms = 51
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'])
+            seed_number=self.params['seed_number'],
+            params=params)
 
         self.state_size, self.action_size = state_size, action_size
 
@@ -329,7 +331,7 @@ class Net(nn.Module):
         s_matrix = np.array(s).reshape(1, self.state_size)
         with torch.no_grad():
             s = torch.from_numpy(s_matrix).float().to(self.device)
-            _, _, a = self.get_best_qvalue_and_action(s)
+            _, _, a, _ = self.get_best_qvalue_and_action(s)
             a = a.cpu().numpy()
         self.train()
         return a
@@ -460,7 +462,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--dueling",
                         action="store_true",
-                        default=True,
+                        default=False,
                         help="run using dueling architecture")
 
     parser.add_argument("--dueling_combine_operator",
@@ -468,10 +470,22 @@ if __name__ == '__main__':
                         default="mean",
                         help="the operator for dueling")
 
+    parser.add_argument("--layer_normalization",
+            action="store_true",
+            default=False,
+            help="apply normalization immediately prior to activations in any hidden layers")
+
     parser.add_argument("--nstep",
                     type=int,
                     default=-1,
                     help="run using multi-step returns of size n")
+
+    parser.add_argument("--noisy_layers",
+            action="store_true",
+            default=False,
+            help=
+            """use noisy linear layers instead of linear
+            layers for all hidden layers""")
 
     parser.add_argument("--per",
                 action="store_true",
@@ -509,9 +523,12 @@ if __name__ == '__main__':
     params['double'] = args.double
     params['dueling'] = args.dueling
     params['dueling_combine_operator'] = args.dueling_combine_operator
+    params['layer_normalization'] = args.layer_normalization
+    params['noisy_layers'] = args.noisy_layers
     params['per'] = args.per
     params['nstep'] = args.nstep
     params["nstep_size"] = 3
+
 
     if len(sys.argv) > 3:
         params['save_prepend'] = str(sys.argv[3])
