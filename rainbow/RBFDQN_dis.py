@@ -392,7 +392,12 @@ class Net(nn.Module):
         if len(self.buffer_object) < self.params['batch_size']:
             return 0
         batch_size = self.params['batch_size']
-        s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+        
+        if self.params['per']:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
+        else:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+        
         r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
 
         s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
@@ -402,7 +407,7 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
         # Q_star = Q_star.reshape((self.params['batch_size'], -1))
         with torch.no_grad():
-            if params['double']:
+            if self.params['double']:
                 _, _, _, info = self.get_best_qvalue_and_action(sp_matrix) # get indices from the online agent
                 indices = info["indices"]
                 _, _, _, info = target_Q.get_best_qvalue_and_action(sp_matrix)
@@ -411,7 +416,10 @@ class Net(nn.Module):
                 dis = torch.diagonal(dis, dim1=0, dim2=1).T
             else:
                 best, dis, a, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
-            next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
+            if self.params['nstep']:
+                next_value_range = r_matrix + self.params['gamma']**self.params['nstep_size'] * (1 - done_matrix) * self.value_range
+            else:
+                next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
             # compute the distribution for actions
             y = torch.zeros((batch_size, self.n_atoms)).to(self.device)
             next_v_range = torch.clip(next_value_range, self.v_min, self.v_max).to(self.device)
@@ -424,8 +432,13 @@ class Net(nn.Module):
             offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
+        
         # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
+        if self.params['per']:
+            td_error = torch.abs(y-y_hat).cpu().detach().numpy()
+            self.buffer_object.storage.update_priorities(indexes, td_error)
+
         # loss = self.criterion(y_hat, y.type(torch.float32))
         loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
@@ -443,162 +456,3 @@ class Net(nn.Module):
             self.reset_noise()
             target_Q.reset_noise()
         return loss.cpu().data.numpy()
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--hyper_parameter_name",
-                        required=True,
-                        help="0, 10, 20, etc. Corresponds to .hyper file",
-                        default="0")  # OpenAI gym environment name
-
-    parser.add_argument("--seed", default=0, help="seed",
-                        type=int)  # Sets Gym, PyTorch and Numpy seeds
-
-    parser.add_argument("--double",
-                        action="store_true",
-                        default=False,
-                        help="run using double DQN")
-
-    parser.add_argument("--dueling",
-                        action="store_true",
-                        default=False,
-                        help="run using dueling architecture")
-
-    parser.add_argument("--dueling_combine_operator",
-                        action="store_true",
-                        default="mean",
-                        help="the operator for dueling")
-
-    parser.add_argument("--layer_normalization",
-            action="store_true",
-            default=False,
-            help="apply normalization immediately prior to activations in any hidden layers")
-
-    parser.add_argument("--nstep",
-                    type=int,
-                    default=-1,
-                    help="run using multi-step returns of size n")
-
-    parser.add_argument("--noisy_layers",
-            action="store_true",
-            default=False,
-            help=
-            """use noisy linear layers instead of linear
-            layers for all hidden layers""")
-
-    parser.add_argument("--per",
-                type=utils.boolify,
-                default=False,
-                help="run using Priority Experience Replay (PER)")
-
-    parser.add_argument("--experiment_name",
-                        type=str,
-                        help="Experiment Name",
-                        required=True)
-    parser.add_argument("--run_title",
-                        type=str,
-                        help="subdirectory for this run",
-                        required=True)
-
-
-    args, unknown = parser.parse_known_args()
-    full_experiment_name = os.path.join(args.experiment_name, args.run_title)
-    utils.create_log_dir(full_experiment_name)
-    hyperparams_dir = utils.create_log_dir(os.path.join(full_experiment_name, "hyperparams"))
-    if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print("Running on the GPU")
-    else:
-        device = torch.device("cpu")
-        print("Running on the CPU")
-
-    alg = 'rbf'
-    params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, alg)
-    params['hyper_parameters_name'] = args.hyper_parameter_name
-    params['full_experiment_file_path'] = os.path.join(os.getcwd(), full_experiment_name)
-    env = gym.make(params["env_name"])
-    params['env'] = env
-    params['seed_number'] = args.seed
-    params['double'] = args.double
-    params['dueling'] = args.dueling
-    params['dueling_combine_operator'] = args.dueling_combine_operator
-    params['layer_normalization'] = args.layer_normalization
-    params['noisy_layers'] = args.noisy_layers
-    params['per'] = args.per
-    params['nstep'] = args.nstep
-    params["nstep_size"] = 3
-
-    if len(sys.argv) > 3:
-        params['save_prepend'] = str(sys.argv[3])
-        print("Save prepend is ", params['save_prepend'])
-
-    utils_for_q_learning.set_random_seed(params)
-    s0 = env.reset()
-    utils_for_q_learning.action_checker(env)
-    Q_object = Net(params,
-                   env,
-                   state_size=len(s0),
-                   action_size=len(env.action_space.low),
-                   device=device)
-    Q_object_target = Net(params,
-                          env,
-                          state_size=len(s0),
-                          action_size=len(env.action_space.low),
-                          device=device)
-    Q_object_target.eval()
-
-    utils_for_q_learning.sync_networks(target=Q_object_target,
-                                       online=Q_object,
-                                       alpha=params['target_network_learning_rate'],
-                                       copy=True)
-
-    G_li = []
-    loss_li = []
-    all_times_per_steps = []
-    all_times_per_updates = []
-    for episode in range(params['max_episode']):
-        print("episode {}".format(episode))
-
-        s, done, t = env.reset(), False, 0
-        while not done:
-            a = Q_object.execute_policy(s, episode + 1, 'train')
-            sp, r, done, _ = env.step(numpy.array(a))
-            #print("reward:",r)
-            t = t + 1
-            done_p = False if t == env._max_episode_steps else done
-            Q_object.buffer_object.append(s, a, r, done_p, sp)
-            s = sp
-        # now update the Q network
-        loss = []
-        for count in range(params['updates_per_episode']):
-            temp = Q_object.update(Q_object_target, count)
-            loss.append(temp)
-
-        loss_li.append(numpy.mean(loss))
-
-        if (episode % 10 == 0) or (episode == params['max_episode'] - 1):
-            temp = []
-            for _ in range(10):
-                s, G, done, t = env.reset(), 0, False, 0
-                while done == False:
-                    a = Q_object.execute_policy(s, episode + 1, 'test')
-                    sp, r, done, _ = env.step(numpy.array(a))
-                    s, G, t = sp, G + r, t + 1
-                temp.append(G)
-            print(
-                "after {} episodes, learned policy collects {} average returns".format(
-                    episode, numpy.mean(temp)))
-            G_li.append(numpy.mean(temp))
-            utils_for_q_learning.save(G_li, loss_li, params, alg)
-        if ((episode % 10 == 0) or episode == (params['max_episode'] + 1)):
-            path = os.path.join(params["full_experiment_file_path"], "logs")
-            if not os.path.exists(path):
-                try:
-                    os.makedirs(path, exist_ok=True)
-                except OSError:
-                    print("Creation of the directory %s failed" % path)
-                else:
-                    print("Successfully created the directory %s " % path)
-            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode)))
-            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode)))

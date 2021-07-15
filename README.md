@@ -36,8 +36,8 @@ If you want to use distributional RBF-DQN
 
 
 ### Example Run Commands
-`python experiments/experiment.py --hyper_parameter_name 10 --seed 0 --experiment_name "./results/testing" --run_title "test" --double True --per True --nstep 4 --dueling True --noisy_layers True`
+`python experiments/experiment.py --hyper_parameter_name 10 --seed 0 --experiment_name "./results/<TASK_NAME>" --run_title "<VARIATION>" --double True --per True --nstep 4 --dueling True --noisy_layers True`
 
 ### Onager to run sweeps 
 
-onager prelaunch +jobname rainbow_experiment1 +command "python experiments/experiment.py --experiment_name ./results/testing" +arg --seed 0 +arg --double True False +arg --nstep 1 2 3 4 5 +arg --dueling True False +arg --layer_normalization True False +arg --noisy_layers True False +arg --run_title +tag run_title
+`onager prelaunch +jobname rainbow_experiment1 +command "python experiments/experiment.py --experiment_name ./results/testing" +arg --seed 0 +arg --double True False +arg --nstep 1 2 3 4 5 +arg --dueling True False +arg --layer_normalization True False +arg --noisy_layers True False +arg --run_title +tag run_title`
