@@ -1,9 +1,15 @@
 """
 This is our run file for all Rainbow RBFDQN experiments.
 """
+"""
+This is our run file for all Rainbow RBFDQN experiments.
+"""
 import argparse
 import os
 import datetime
+import sys
+
+sys.path.append("..")
 
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
@@ -14,7 +20,6 @@ from rainbow.RBFDQN_dis import Net as DistributionalNet
 import torch
 import numpy
 import gym
-import sys
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -43,53 +48,53 @@ if __name__ == "__main__":
 
     parser.add_argument("--log", action="store_true")
 
-    parser.add_argument("--double", 
+    parser.add_argument("--double",
                         type=utils.boolify,
                         default=False,
                         help="run using double DQN")
 
-    parser.add_argument("--nstep", 
-                    type=int,
-                    default=1,
-                    help="run using multi-step returns of size n")
+    parser.add_argument("--nstep",
+                        type=int,
+                        default=1,
+                        help="run using multi-step returns of size n")
 
-    parser.add_argument("--per", 
-                type=utils.boolify,
-                default=False,
-                help="run using Priority Experience Replay (PER)")
+    parser.add_argument("--per",
+                        type=utils.boolify,
+                        default=False,
+                        help="run using Priority Experience Replay (PER)")
 
-    parser.add_argument("--dueling", 
-            type=utils.boolify,
-            default=False,
-            help="run using dueling architecture")
+    parser.add_argument("--dueling",
+                        type=utils.boolify,
+                        default=False,
+                        help="run using dueling architecture")
 
     parser.add_argument("--mean",
-            type=utils.boolify,
-            default=False,
-            help=
-            """use the mean combine operator to  
-            combine advantage and base value 
-            (otherwise max is used by default""")
+                        type=utils.boolify,
+                        default=False,
+                        help=
+                        """use the mean combine operator to  
+                        combine advantage and base value 
+                        (otherwise max is used by default""")
 
     parser.add_argument("--layer_normalization",
-            type=utils.boolify,
-            default=False,
-            help=
-            """apply normalization immediately
-            prior to activations in any hidden layers""")
-    
+                        type=utils.boolify,
+                        default=False,
+                        help=
+                        """apply normalization immediately
+                        prior to activations in any hidden layers""")
+
     parser.add_argument("--noisy_layers",
-            type=utils.boolify,
-            default=False,
-            help=
-            """use noisy linear layers instead of linear
-            layers for all hidden layers""")
+                        type=utils.boolify,
+                        default=False,
+                        help=
+                        """use noisy linear layers instead of linear
+                        layers for all hidden layers""")
 
     parser.add_argument("--distributional",
-        type=utils.boolify,
-        default=False,
-        help=
-        """Use Distributional RBF-DQN""")
+                        type=utils.boolify,
+                        default=False,
+                        help=
+                        """Use Distributional RBF-DQN""")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -116,7 +121,6 @@ if __name__ == "__main__":
     params['dueling'] = args.dueling
     params['distributional'] = args.distributional
 
-
     print("Distributional:", params["distributional"])
 
     # Rainbow RBF-DQN improvements
@@ -128,18 +132,18 @@ if __name__ == "__main__":
         params["nstep_size"] = args.nstep
     else:
         params["nstep"] = False
-        params["nstep_size"] = -1 # note using multi step returns.
-    
+        params["nstep_size"] = -1  # note using multi step returns.
+
     print("Nstep:", params["nstep"], "Nstep_size:", params["nstep_size"])
 
-    print("PER:", params["per"])    
+    print("PER:", params["per"])
     # continue adding Rainbow RBFDQN flags for ablations here.
 
     if (args.mean and params['dueling']):
         params["dueling_combine_operator"] = "mean"
     else:
         params["dueling_combine_operator"] = "max"
-    
+
     print("Dueling:", params['dueling'], "Combine Operator:", params['dueling_combine_operator'])
 
     params['layer_normalization'] = args.layer_normalization
@@ -155,7 +159,7 @@ if __name__ == "__main__":
     else:
         device = torch.device("cpu")
         print("Running on the CPU")
-   
+
     env = gym.make(params["env_name"])
 
     params['env'] = env
@@ -163,30 +167,30 @@ if __name__ == "__main__":
     utils_for_q_learning.set_random_seed(params)
     s0 = env.reset()
     utils_for_q_learning.action_checker(env)
-    
-    if not params['distributional']: 
+
+    if not params['distributional']:
         Q_object = Net(params,
-                    env,
-                    state_size=len(s0),
-                    action_size=len(env.action_space.low),
-                    device=device)
+                       env,
+                       state_size=len(s0),
+                       action_size=len(env.action_space.low),
+                       device=device)
         Q_object_target = Net(params,
-                            env,
-                            state_size=len(s0),
-                            action_size=len(env.action_space.low),
-                            device=device)
+                              env,
+                              state_size=len(s0),
+                              action_size=len(env.action_space.low),
+                              device=device)
     else:
         Q_object = DistributionalNet(params,
-                    env,
-                    state_size=len(s0),
-                    action_size=len(env.action_space.low),
-                    device=device)
+                                     env,
+                                     state_size=len(s0),
+                                     action_size=len(env.action_space.low),
+                                     device=device)
         Q_object_target = DistributionalNet(params,
-                            env,
-                            state_size=len(s0),
-                            action_size=len(env.action_space.low),
-                            device=device)
-    
+                                            env,
+                                            state_size=len(s0),
+                                            action_size=len(env.action_space.low),
+                                            device=device)
+
     Q_object_target.eval()
 
     utils_for_q_learning.sync_networks(target=Q_object_target,
@@ -212,8 +216,6 @@ if __name__ == "__main__":
         s, done, t = env.reset(), False, 0
         while not done:
             a = Q_object.execute_policy(s, episode + 1, 'train')
-            if params["distributional"]:
-                a = a[0]
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -234,8 +236,6 @@ if __name__ == "__main__":
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
                     a = Q_object.execute_policy(s, episode + 1, 'test')
-                    if params["distributional"]:
-                        a = a[0]
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)
@@ -246,7 +246,7 @@ if __name__ == "__main__":
             utils_for_q_learning.save(G_li, loss_li, params, "rbf")
             meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
 
-        if(params["log"] or ((episode%50==0) or episode == (params['max_episode'] + 1))): 
+        if (params["log"] or ((episode % 50 == 0) or episode == (params['max_episode'] + 1))):
             path = os.path.join(params["full_experiment_file_path"], "logs")
             if not os.path.exists(path):
                 try:
