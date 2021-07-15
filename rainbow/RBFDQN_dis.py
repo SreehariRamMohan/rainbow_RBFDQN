@@ -71,8 +71,8 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -400, 0
-        self.n_atoms = 51
+        self.v_min, self.v_max = self.params['vmin'], self.params['vmax']
+        self.n_atoms = self.params['num_atoms']
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
@@ -241,8 +241,7 @@ class Net(nn.Module):
         a = torch.diagonal(a, dim1=0, dim2=1).T
         dis = torch.index_select(alldis, 1, indices)
         dis = torch.diagonal(dis, dim1=0, dim2=1).T
-
-        return best, dis, a, {"alldis": alldis, "indices": indices}
+        return best, dis, a.squeeze(), {"alldis": alldis, "indices": indices}
 
     def forward(self, s, a):
         """
