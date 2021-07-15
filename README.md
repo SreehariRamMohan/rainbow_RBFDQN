@@ -13,28 +13,31 @@ Creates a sub-folder under the results/<exp_name>/ directory and stores all the 
 `--log` 
 Use this flag if you want to store model checkpoint files for the network & target network. Files are stored under `results/<exp_name>/<run_title>/logs`
 
-`--double` 
+`--double <True / False>` 
 If you want to use double DQN
 
 `--nstep <step_size>`
-If you want to use multi step returns
+If you want to use multi step returns, by default 1 is 1-step updates
 
-`--dueling` 
+`--dueling <True / False>` 
 If you want to use a dueling architecture.
 
-`--mean` 
+`--mean <True / False>` 
 By default the dueling architecture uses the max combine operator to merge the base value and advantage values. You can use the mean as the combine operator with this flag (default is max)
 
-`--layer_normalization`
+`--layer_normalization <True / False>`
 If you want to apply layer normalization on hidden layers, before the activation function
 
-`--noisy_layers`
+`--noisy_layers <True / False>`
 If you want noisy linear layers to be used in place of linear layers, and use parameter noise for the exploration strategy
+
+`--distributional <True / False> `
+If you want to use distributional RBF-DQN 
 
 
 ### Example Run Commands
-`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double`
+`python experiments/experiment.py --hyper_parameter_name 10 --seed 0 --experiment_name "./results/testing" --run_title "test" --double True --per True --nstep 4 --dueling True --noisy_layers True`
 
-`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --double --nstep 3`
+### Onager to run sweeps 
 
-`python experiments/experiment.py --hyper_parameter_name 00 --experiment_name ./results/test --run_title test --per --dueling`
+onager prelaunch +jobname rainbow_experiment1 +command "python experiments/experiment.py --experiment_name ./results/testing" +arg --seed 0 +arg --double True False +arg --nstep 1 2 3 4 5 +arg --dueling True False +arg --layer_normalization True False +arg --noisy_layers True False +arg --run_title +tag run_title

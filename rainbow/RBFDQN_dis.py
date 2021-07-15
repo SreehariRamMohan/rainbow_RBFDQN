@@ -195,7 +195,6 @@ class Net(nn.Module):
             elif self.params["dueling_combine_operator"] == 'max':
                 logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
         else:
-            breakpoint()
             logits = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
         centroid_distributions = torch.softmax(logits, dim=2)
         centroid_values = torch.sum(self.value_range.expand(batch_size, self.N, -1) * centroid_distributions, dim=2)  # [batch x N x 1]
@@ -529,8 +528,6 @@ if __name__ == '__main__':
     params['per'] = args.per
     params['nstep'] = args.nstep
     params["nstep_size"] = 3
-
-    breakpoint()
 
     if len(sys.argv) > 3:
         params['save_prepend'] = str(sys.argv[3])

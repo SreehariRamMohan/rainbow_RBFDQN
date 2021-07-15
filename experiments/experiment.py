@@ -212,6 +212,8 @@ if __name__ == "__main__":
         s, done, t = env.reset(), False, 0
         while not done:
             a = Q_object.execute_policy(s, episode + 1, 'train')
+            if params["distributional"]:
+                a = a[0]
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             done_p = False if t == env._max_episode_steps else done
@@ -232,6 +234,8 @@ if __name__ == "__main__":
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
                     a = Q_object.execute_policy(s, episode + 1, 'test')
+                    if params["distributional"]:
+                        a = a[0]
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)
