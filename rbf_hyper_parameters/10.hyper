@@ -19,3 +19,6 @@ updates_per_episode,1000,integer
 dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,e_greedy,string
+vmin,-600,integer
+vmax,300,integer
+num_atoms,151,integer
