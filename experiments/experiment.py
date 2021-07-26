@@ -95,6 +95,10 @@ if __name__ == "__main__":
                         default=False,
                         help=
                         """Use Distributional RBF-DQN""")
+    parser.add_argument("--reward_norm",
+                        type=str,
+                        required=True,
+                        default="clip")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -120,6 +124,7 @@ if __name__ == "__main__":
     params['per'] = args.per
     params['dueling'] = args.dueling
     params['distributional'] = args.distributional
+    params['reward_norm'] = args.reward_norm
 
     print("Distributional:", params["distributional"])
 
