@@ -156,6 +156,8 @@ if __name__ == "__main__":
 
     print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
 
+    print("reward normalization: ", params['reward_norm'])
+
     utils.save_hyper_parameters(params, args.seed)
 
     if torch.cuda.is_available():
