@@ -34,6 +34,8 @@ If you want noisy linear layers to be used in place of linear layers, and use pa
 `--distributional <True / False> `
 If you want to use distributional RBF-DQN 
 
+`--reward_norm <clip / max> `
+Select how to normalize your rewards
 
 ### Example Run Commands
 `python experiments/experiment.py --hyper_parameter_name 10 --seed 0 --experiment_name "./results/<TASK_NAME>" --run_title "<VARIATION>" --double True --per True --nstep 4 --dueling True --noisy_layers True`
