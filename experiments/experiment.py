@@ -97,7 +97,7 @@ if __name__ == "__main__":
                         """Use Distributional RBF-DQN""")
     parser.add_argument("--reward_norm",
                         type=str,
-                        required=True,
+                        required=False,
                         default="clip")
 
     args, unknown = parser.parse_known_args()
