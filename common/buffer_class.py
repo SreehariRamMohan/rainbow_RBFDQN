@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 from cpprb import ReplayBuffer, PrioritizedReplayBuffer, create_env_dict, create_before_add_func
 import random
 
@@ -8,6 +8,15 @@ class buffer_class:
 		env_dict = create_env_dict(env)
 		self.before_add = create_before_add_func(env)
 		self.params = params
+		
+		# used to schedule beta (compensation param)
+		self.call_counter = 0 
+		self.increments = 10 # increments for beta
+		self.move_up_every = int((self.params["max_episode"])/(self.increments))
+		self.beta_schedule = np.linspace(0.4, 1.0, self.increments)
+		self.current_beta_index = -1
+
+
 		if params['per']:
 			if params['nstep']:
 				self.storage = PrioritizedReplayBuffer(max_length, env_dict, Nstep={
@@ -48,7 +57,15 @@ class buffer_class:
 
 	def sample(self, batch_size):
 		if self.params['per']:
-			batch = self.storage.sample(batch_size)
+			if (self.call_counter % (self.move_up_every*self.params['updates_per_episode']) == 0
+			and (self.call_counter != 0 or self.current_beta_index == -1)):
+				self.current_beta_index += 1
+				print("Switching to PER beta of:", self.beta_schedule[self.current_beta_index])
+				self.call_counter = 0 # prevent overflow
+
+			self.call_counter += 1
+			batch = self.storage.sample(batch_size, self.beta_schedule[self.current_beta_index])
+
 			s_matrix = batch['obs']
 			a_matrix = batch['act']
 			r_matrix = batch['rew']
