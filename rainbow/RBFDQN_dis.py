@@ -241,7 +241,7 @@ class Net(nn.Module):
         a = torch.diagonal(a, dim1=0, dim2=1).T
         dis = torch.index_select(alldis, 1, indices)
         dis = torch.diagonal(dis, dim1=0, dim2=1).T
-        return best, dis, a.squeeze(), {"alldis": alldis, "indices": indices}
+        return best, dis, a.squeeze(0), {"alldis": alldis, "indices": indices}
 
     def forward(self, s, a):
         """
@@ -391,7 +391,7 @@ class Net(nn.Module):
         if len(self.buffer_object) < self.params['batch_size']:
             return 0
         batch_size = self.params['batch_size']
-        
+
         if self.params['per']:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
         else:
@@ -435,7 +435,7 @@ class Net(nn.Module):
             offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
-        
+
         # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
         if self.params['per']:
