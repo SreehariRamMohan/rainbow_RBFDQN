@@ -8,13 +8,14 @@ class buffer_class:
 		env_dict = create_env_dict(env)
 		self.before_add = create_before_add_func(env)
 		self.params = params
-		
+
 		# used to schedule beta (compensation param)
-		self.call_counter = 0 
+		self.call_counter = 0
 		self.increments = 10 # increments for beta
 		self.move_up_every = int((self.params["max_episode"])/(self.increments))
 		self.beta_schedule = np.linspace(0.4, 1.0, self.increments)
 		self.current_beta_index = -1
+
 
 
 		if params['per']:
@@ -24,9 +25,9 @@ class buffer_class:
 				"gamma": params["gamma"],
 				"rew": "rew",
 				"next": "next_obs"
-			})
+			}, alpha=params['alpha'])
 			else:
-				self.storage = PrioritizedReplayBuffer(max_length, env_dict)
+				self.storage = PrioritizedReplayBuffer(max_length, env_dict, alpha=params['alpha'])
 		else:
 			if params['nstep']:
 				self.storage = ReplayBuffer(max_length, env_dict, Nstep={

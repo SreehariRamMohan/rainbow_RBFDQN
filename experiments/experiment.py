@@ -72,8 +72,8 @@ if __name__ == "__main__":
                         type=utils.boolify,
                         default=False,
                         help=
-                        """use the mean combine operator to  
-                        combine advantage and base value 
+                        """use the mean combine operator to
+                        combine advantage and base value
                         (otherwise max is used by default""")
 
     parser.add_argument("--layer_normalization",
@@ -100,6 +100,10 @@ if __name__ == "__main__":
                         required=False,
                         default="clip")
 
+    parser.add_argument("--alpha", default=0.6, help="alpha",
+                        type=float)  # alpha for PER
+    #parser.add_argument("--beta", default=1, help="beta",type=float)  # beta for PER
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -125,6 +129,8 @@ if __name__ == "__main__":
     params['dueling'] = args.dueling
     params['distributional'] = args.distributional
     params['reward_norm'] = args.reward_norm
+    params['alpha'] = args.alpha
+    #params['beta'] = args.beta
 
     print("Distributional:", params["distributional"])
 
@@ -242,6 +248,7 @@ if __name__ == "__main__":
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
+
                     a = Q_object.execute_policy(s, episode + 1, 'test')
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
