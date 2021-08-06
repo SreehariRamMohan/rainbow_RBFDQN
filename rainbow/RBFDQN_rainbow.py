@@ -373,7 +373,16 @@ class Net(nn.Module):
         else:
             self.eval_noisy()
 
-        a = self.policy(s, episode, train_or_test)
+        ## Set the policy to use here for testing (noisy / noisy with ep-greedy)
+        a = None
+        if self.params['policy_type'] == 'e_greedy':
+            a = self.e_greedy_policy(s, episode, train_or_test)
+        elif self.params['policy_type'] == 'e_greedy_gaussian':
+            a = self.e_greedy_gaussian_policy(s, episode, train_or_test)
+        elif self.params['policy_type'] == 'gaussian':
+            a = self.gaussian_policy(s, episode, train_or_test)
+        else:
+            a = self.policy(s, episode, train_or_test)
         self.train_noisy()  ## set self.train flags in modules
         return a
 
