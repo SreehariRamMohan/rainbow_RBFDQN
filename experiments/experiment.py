@@ -236,6 +236,7 @@ if __name__ == "__main__":
             s = sp
         # now update the Q network
         loss = []
+        breakpoint()
         for count in range(params['updates_per_episode']):
             temp = Q_object.update(Q_object_target, count)
             loss.append(temp)
@@ -248,14 +249,16 @@ if __name__ == "__main__":
             for _ in range(10):
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
-
-                    a = Q_object.execute_policy(s, episode + 1, 'test')
+                    a = Q_object.e_greedy_policy(s, episode + 1, 'test')
+                    print("state:", s, "action:", a)
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)
+
             print(
                 "after {} episodes, learned policy collects {} average returns".format(
                     episode, numpy.mean(temp)))
+            breakpoint()
             G_li.append(numpy.mean(temp))
             utils_for_q_learning.save(G_li, loss_li, params, "rbf")
             meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
