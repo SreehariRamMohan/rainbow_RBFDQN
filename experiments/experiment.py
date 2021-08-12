@@ -236,7 +236,7 @@ if __name__ == "__main__":
             s = sp
         # now update the Q network
         loss = []
-        breakpoint()
+
         for count in range(params['updates_per_episode']):
             temp = Q_object.update(Q_object_target, count)
             loss.append(temp)
@@ -258,7 +258,7 @@ if __name__ == "__main__":
             print(
                 "after {} episodes, learned policy collects {} average returns".format(
                     episode, numpy.mean(temp)))
-            breakpoint()
+
             G_li.append(numpy.mean(temp))
             utils_for_q_learning.save(G_li, loss_li, params, "rbf")
             meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
