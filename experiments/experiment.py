@@ -250,7 +250,6 @@ if __name__ == "__main__":
                 s, G, done, t = env.reset(), 0, False, 0
                 while done == False:
                     a = Q_object.e_greedy_policy(s, episode + 1, 'test')
-                    print("state:", s, "action:", a)
                     sp, r, done, _ = env.step(numpy.array(a))
                     s, G, t = sp, G + r, t + 1
                 temp.append(G)
