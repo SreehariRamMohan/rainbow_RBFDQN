@@ -13,7 +13,7 @@ class buffer_class:
 		self.call_counter = 0
 		self.increments = 10 # increments for beta
 		self.move_up_every = int((self.params["max_episode"])/(self.increments))
-		self.beta_schedule = np.linspace(0.6, 1.0, self.increments)
+		self.beta_schedule = np.linspace(self.params['per_beta_start'], 1.0, self.increments)
 		self.current_beta_index = -1
 
 		if params['per']:

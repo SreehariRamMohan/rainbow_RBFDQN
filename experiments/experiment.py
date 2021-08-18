@@ -102,7 +102,8 @@ if __name__ == "__main__":
 
     parser.add_argument("--alpha", default=0.1, help="alpha",
                         type=float)  # alpha for PER
-    #parser.add_argument("--beta", default=1, help="beta",type=float)  # beta for PER
+    
+    parser.add_argument("--per_beta_start", default=0.4, help="beta for per",type=float)  # beta for PER
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
