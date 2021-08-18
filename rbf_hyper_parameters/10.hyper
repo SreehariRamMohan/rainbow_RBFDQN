@@ -22,3 +22,4 @@ policy_type,e_greedy,string
 vmin,-600,integer
 vmax,300,integer
 num_atoms,151,integer
+alpha,0.10,float

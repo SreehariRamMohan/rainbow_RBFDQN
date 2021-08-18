@@ -16,8 +16,6 @@ class buffer_class:
 		self.beta_schedule = np.linspace(0.4, 1.0, self.increments)
 		self.current_beta_index = -1
 
-
-
 		if params['per']:
 			if params['nstep']:
 				self.storage = PrioritizedReplayBuffer(max_length, env_dict, Nstep={

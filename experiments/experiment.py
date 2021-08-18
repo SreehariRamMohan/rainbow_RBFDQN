@@ -100,7 +100,7 @@ if __name__ == "__main__":
                         required=False,
                         default="clip")
 
-    parser.add_argument("--alpha", default=0.6, help="alpha",
+    parser.add_argument("--alpha", default=0.1, help="alpha",
                         type=float)  # alpha for PER
     #parser.add_argument("--beta", default=1, help="beta",type=float)  # beta for PER
 
