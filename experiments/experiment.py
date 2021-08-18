@@ -104,6 +104,12 @@ if __name__ == "__main__":
                         type=float)  # alpha for PER
     
     parser.add_argument("--per_beta_start", default=0.4, help="beta for per",type=float)  # beta for PER
+    
+    parser.add_argument("--should_schedule_beta",
+                        type=utils.boolify,
+                        default=True,
+                        help=
+                        """Whether to anneal the value of beta from per_beta_start to 1.0 over the course of training""")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -131,6 +137,9 @@ if __name__ == "__main__":
     params['distributional'] = args.distributional
     params['reward_norm'] = args.reward_norm
     params['alpha'] = args.alpha
+    params['per_beta_start'] = args.per_beta_start
+    params['should_schedule_beta'] = args.should_schedule_beta
+
     #params['beta'] = args.beta
 
     print("Distributional:", params["distributional"])
@@ -148,7 +157,8 @@ if __name__ == "__main__":
 
     print("Nstep:", params["nstep"], "Nstep_size:", params["nstep_size"])
 
-    print("PER:", params["per"])
+    print("PER:", params["per"],"PER alpha:",params['alpha'],"PER beta:",params['per_beta_start'])
+    print("Scheduling PER Beta to go from per_beta_start-->1.0:", params['should_schedule_beta'])
     # continue adding Rainbow RBFDQN flags for ablations here.
 
     if (args.mean and params['dueling']):
@@ -263,7 +273,7 @@ if __name__ == "__main__":
             utils_for_q_learning.save(G_li, loss_li, params, "rbf")
             meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
 
-        if (params["log"] or ((episode % 50 == 0) or episode == (params['max_episode'] + 1))):
+        if (params["log"] and ((episode % 50 == 0) or episode == (params['max_episode'] + 1))):
             path = os.path.join(params["full_experiment_file_path"], "logs")
             if not os.path.exists(path):
                 try:

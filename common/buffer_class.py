@@ -56,7 +56,8 @@ class buffer_class:
 
 	def sample(self, batch_size):
 		if self.params['per']:
-			if (self.call_counter % (self.move_up_every*self.params['updates_per_episode']) == 0
+			if (self.params['should_schedule_beta'] and 
+			self.call_counter % (self.move_up_every*self.params['updates_per_episode']) == 0
 			and (self.call_counter != 0 or self.current_beta_index == -1)):
 				self.current_beta_index += 1
 				print("Switching to PER beta of:", self.beta_schedule[self.current_beta_index])
