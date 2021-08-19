@@ -157,7 +157,14 @@ class Net(nn.Module):
             self.location_module[3].weight.data.uniform_(-.1, .1)
             self.location_module[3].bias.data.uniform_(-1., 1.)
 
-        self.criterion = nn.MSELoss()
+        if self.params['loss_type'] == 'MSELoss':
+            self.criterion = nn.MSELoss()
+        elif self.params['loss_type'] == 'HuberLoss':
+            self.criterion = nn.HuberLoss()
+        else:
+            raise NameError('only two kinds of loss can we use, MSELoss or HuberLoss')
+
+        
 
         if not self.params['dueling']:
             self.params_dic = [{

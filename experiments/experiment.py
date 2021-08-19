@@ -110,6 +110,11 @@ if __name__ == "__main__":
                         default=True,
                         help=
                         """Whether to anneal the value of beta from per_beta_start to 1.0 over the course of training""")
+    parser.add_argument("--loss_type",
+                        type=str,
+                        default="MSELoss",
+                        help=
+                        """there are two types of loss we can use, MSELoss or HuberLoss""")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -139,6 +144,7 @@ if __name__ == "__main__":
     params['alpha'] = args.alpha
     params['per_beta_start'] = args.per_beta_start
     params['should_schedule_beta'] = args.should_schedule_beta
+    params['loss_type'] = args.loss_type
 
     #params['beta'] = args.beta
 
