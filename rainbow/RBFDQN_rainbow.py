@@ -160,7 +160,9 @@ class Net(nn.Module):
         if self.params['loss_type'] == 'MSELoss':
             self.criterion = nn.MSELoss()
         elif self.params['loss_type'] == 'HuberLoss':
-            self.criterion = nn.HuberLoss()
+            # if the torch version is smaller than 1.9.0, the huber loss is called SMOOTHL1LOSS
+            self.criterion = nn.SmoothL1Loss()
+            #self.criterion = nn.HuberLoss()
         else:
             raise NameError('only two kinds of loss can we use, MSELoss or HuberLoss')
 
