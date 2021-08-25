@@ -109,6 +109,12 @@ class Net(nn.Module):
                 noisy_linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
             )
             self.baseValue_module = nn.Sequential(
                 noisy_linear(self.params['layer_size'], self.n_atoms)  # [batch_size x num_atoms], needs to be expanded in dimension 1
@@ -122,6 +128,12 @@ class Net(nn.Module):
         else:
             self.value_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
                 noisy_linear(self.params['layer_size'], self.params['layer_size']),
@@ -233,15 +245,12 @@ class Net(nn.Module):
 
         allq = torch.bmm(weights, values.unsqueeze(2)).squeeze(2)  # bs x num_centroids
         alldis = torch.bmm(weights, distribution)
-        # a -> all_centroids[idx] such that idx is max(dim=1) in allq
-        # a = torch.gather(all_centroids, dim=1, index=indices)
-        # (dim: bs x 1, dim: bs x action_dim)
         best, indices = allq.max(dim=1)
         a = torch.index_select(all_centroids, 1, indices) # This way of indexing works for both cases
         a = torch.diagonal(a, dim1=0, dim2=1).T
         dis = torch.index_select(alldis, 1, indices)
         dis = torch.diagonal(dis, dim1=0, dim2=1).T
-        return best, dis, a.squeeze(0), {"alldis": alldis, "indices": indices}
+        return best, dis, a.squeeze(), {"alldis": alldis, "indices": indices}
 
     def forward(self, s, a):
         """
@@ -251,8 +260,8 @@ class Net(nn.Module):
         centroid_locations = self.get_centroid_locations(s)
         # [batch x N]
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)
-        output = torch.mul(centroid_weights.unsqueeze(2), centroid_distributions)  # [batch x N]
-        output = output.sum(1)  # [batch x num_atoms]
+        output = torch.bmm(centroid_weights.unsqueeze(1), centroid_distributions).squeeze(1) # [batch x N]
+
         return output
 
     def train_noisy(self):
@@ -391,17 +400,22 @@ class Net(nn.Module):
         if len(self.buffer_object) < self.params['batch_size']:
             return 0
         batch_size = self.params['batch_size']
-
+        
         if self.params['per']:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
         else:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
 
+        assert self.params['reward_norm'] in ['clip', 'max', 'clip_max', 'none']
         if self.params['reward_norm'] == "clip":
             r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
         elif self.params['reward_norm'] == "max":
             r_matrix = r_matrix * (1.0/self.params['reward_max'])
-            r_matrix = numpy.clip(r_matrix, a_min=-1, a_max=1)
+        elif self.params['reward_norm'] == "clip_max":
+            r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
+            r_matrix = r_matrix * (1.0 / self.params['reward_max'])
+        elif self.params['reward_norm'] == "none":
+            r_matrix = r_matrix
 
         s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
         a_matrix = torch.from_numpy(a_matrix).float().to(self.device)
@@ -435,7 +449,7 @@ class Net(nn.Module):
             offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
-
+        
         # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
         if self.params['per']:
