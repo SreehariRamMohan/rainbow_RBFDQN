@@ -23,3 +23,4 @@ vmin,-1500,integer
 vmax,-100,integer
 num_atoms,51,integer
 alpha,0.10,float
+loss_type,MSELoss,string

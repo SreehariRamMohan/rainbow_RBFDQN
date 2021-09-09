@@ -449,9 +449,13 @@ class Net(nn.Module):
         if (self.params["double"]):
             if not self.params['dueling']:
                 _, actions = self.get_best_qvalue_and_action(sp_matrix)
-                target_centroids = target_Q.get_centroid_locations(sp_matrix)
+                
+                target_centroids = self.get_centroid_locations(sp_matrix)
+                
                 centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
+                
                 centroid_values = target_Q.get_centroid_values(sp_matrix)
+                
                 output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
                 Q_star = output.sum(1, keepdim=True)  # [batch x 1]
             else:
