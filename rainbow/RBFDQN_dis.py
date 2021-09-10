@@ -261,7 +261,6 @@ class Net(nn.Module):
         # [batch x N]
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)
         output = torch.bmm(centroid_weights.unsqueeze(1), centroid_distributions).squeeze(1) # [batch x N]
-
         return output
 
     def train_noisy(self):
