@@ -10,7 +10,7 @@ target_network_learning_rate,0.005,float
 max_buffer_size,250000,integer
 gamma,0.99,float
 batch_size,256,integer
-num_points,100,integer
+num_points,500,integer
 reward_clip,20,float
 temperature,.1,float
 policy_parameter,2.75,float
@@ -19,6 +19,6 @@ updates_per_episode,1000,integer
 dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,gaussian,string
-noise,0.25,float
+noise,0.1,float
 per_beta_start,0.8,float
 alpha,0.10,float
