@@ -115,7 +115,23 @@ if __name__ == "__main__":
                         default="MSELoss",
                         help=
                         """there are two types of loss we can use, MSELoss or HuberLoss""")
-
+    # add the arguments for sweep
+    parser.add_argument("--learning_rate",
+                        type=float,
+                        default=0)
+    parser.add_argument("--num_points",
+                        type=int,
+                        default=0)
+    parser.add_argument("--vmin",
+                        type=float,
+                        default=0)
+    parser.add_argument("--vmax",
+                        type=float,
+                        default=0)
+    parser.add_argument("--learning_rate_location_side",
+                        type=float,
+                        default=0)
+    # edit hyper parameters
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -145,6 +161,18 @@ if __name__ == "__main__":
     params['per_beta_start'] = args.per_beta_start
     params['should_schedule_beta'] = args.should_schedule_beta
     params['loss_type'] = args.loss_type
+
+    # change hyper parameters from command line
+    if args.learning_rate:
+        params['learning_rate'] = args.learning_rate
+    if args.num_points:
+        params['num_points'] = args.num_points
+    if args.vmin:
+        params['vmin'] = args.vmin
+    if args.vmax:
+        params['vmax'] = args.vmax
+    if args.learning_rate_location_side:
+        params['learning_rate_location_side'] = args.learning_rate_location_side
 
     #params['beta'] = args.beta
 
