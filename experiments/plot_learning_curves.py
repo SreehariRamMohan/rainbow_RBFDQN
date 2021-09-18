@@ -18,7 +18,8 @@ def make_graphs(experiment_name,
                 only_longest=False,
                 skip_failures=False,
                 cumulative=False,
-                all_seeds=False):
+                all_seeds=False,
+                use_onager=False):
 
     if run_titles is None:
         print("Using all runs in experiment")
@@ -49,6 +50,44 @@ def make_graphs(experiment_name,
         except Exception as e:
             print(f"skipping {log_dir} due to error {e}")
             pass
+    
+    if use_onager:
+        '''
+        When performing onager sweeps you can end up with hundreds and hundreds of variations. 
+        Plotting all of this and manually combing through can be messy. 
+        This short snippet of code can prune out the terrible performing runs and just give you the top N_BEST performing ones. 
+        '''
+        # the number of "top runs" you want to plot
+        N_BEST = 10
+        
+        # the length of the trajectory (from the end) you want to use as a heuristic for ranking all the runs 
+        RUN_HEURISTIC = 20
+
+        # the minimum length of a trajectory to be considered in our ranking. Set this to something positive so the code 
+        # won't crash if it tries to plot a run which is 0 in length. 
+        MIN_LENGTH = 100
+
+        # only works for reward plotting for now
+        if "reward" not in subdir:
+            raise RuntimeError("Can only prune based on evaluation or episodic rewards")
+
+        '''
+        We do a few things here
+        1) remove any trajectories which are < MIN_LENGTH
+        2) compute the mean of the last RUN_HEURISTIC steps in each trajectory
+        '''
+        rank_array = [(np.mean(k[0][-RUN_HEURISTIC:]), k[1], k[0]) for idx, k in enumerate(zip(score_arrays, run_titles)) if k[0].shape[1] > MIN_LENGTH]
+
+        '''
+        Sort the trajectories based on the RUN_HEURISTIC score
+        '''
+        rank_array = sorted(rank_array, key=lambda x: x[0], reverse=True)
+
+        '''
+        Get the N_BEST trajectories.
+        '''
+        rank_array = rank_array[:N_BEST]
+        perf_heuristics, good_run_titles, score_arrays = (list(l) for l in zip(*rank_array))
 
     [
         generate_plot(score_array, run_title, smoothen=smoothen)
@@ -67,12 +106,18 @@ def main():
     Change these options and directories to suit your needs
     """
     ## Defaults
-    subdir = "scores"
+    subdir = "evaluation_rewards"
     smoothen = False
     min_length = -1
     only_longest = False
     cumulative = False
     all_seeds = False
+
+    '''
+    Set this flag to true if you are pointing the plot_learning_curve script to an onager experiment folder
+    The use case of this is if you have >> (many many) run folders you want to comb through for the best performance.
+    '''
+    USE_ONAGER = True
 
     ## Options (Uncomment as needed)
     # smoothen = True
@@ -81,7 +126,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "./path/to/experiment"
+    experiment_name = "/home/sreehari/Downloads/Ant"
     run_titles = get_all_run_titles(experiment_name)
     make_graphs(experiment_name,
                 subdir,
@@ -90,7 +135,9 @@ def main():
                 min_length=min_length,
                 only_longest=only_longest,
                 cumulative=cumulative,
-                all_seeds=all_seeds)
+                all_seeds=all_seeds,
+                use_onager=USE_ONAGER
+                )
 
 
 if __name__ == '__main__':
