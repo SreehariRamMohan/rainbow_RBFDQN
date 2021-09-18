@@ -115,7 +115,7 @@ if __name__ == "__main__":
                         default="MSELoss",
                         help=
                         """there are two types of loss we can use, MSELoss or HuberLoss""")
-    # add the arguments for sweep
+    
     parser.add_argument("--learning_rate",
                         type=float,
                         default=0)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate_location_side",
                         type=float,
                         default=0)
-    # edit hyper parameters
+    
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -191,9 +191,10 @@ if __name__ == "__main__":
 
     print("Nstep:", params["nstep"], "Nstep_size:", params["nstep_size"])
 
-    print("PER:", params["per"],"PER alpha:",params['alpha'],"PER beta:",params['per_beta_start'])
-    print("Scheduling PER Beta to go from per_beta_start-->1.0:", params['should_schedule_beta'])
-    # continue adding Rainbow RBFDQN flags for ablations here.
+    print("PER:", params["per"])
+    if params["per"]:
+        print("PER alpha:",params['alpha'],"PER beta:",params['per_beta_start'])
+        print("Scheduling PER Beta to go from per_beta_start-->1.0:", params['should_schedule_beta'])
 
     if (args.mean and params['dueling']):
         params["dueling_combine_operator"] = "mean"
@@ -262,6 +263,7 @@ if __name__ == "__main__":
     logging_filename = f"seed_{args.seed}.pkl"
 
     meta_logger.add_field("evaluation_rewards", logging_filename)
+    meta_logger.add_field("episodic_rewards", logging_filename)
     meta_logger.add_field("average_loss", logging_filename)
 
     G_li = []
@@ -272,13 +274,18 @@ if __name__ == "__main__":
         print("episode {}".format(episode))
 
         s, done, t = env.reset(), False, 0
+        episodic_rewards = 0
+
         while not done:
             a = Q_object.execute_policy(s, episode + 1, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
+            episodic_rewards += r
             done_p = False if t == env._max_episode_steps else done
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
+        
+        meta_logger.append_datapoint("episodic_rewards", episodic_rewards, write=True)
         # now update the Q network
         loss = []
 
@@ -287,7 +294,7 @@ if __name__ == "__main__":
             loss.append(temp)
 
         loss_li.append(numpy.mean(loss))
-        meta_logger.append_datapoint("average_loss", numpy.mean(loss))
+        meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
 
         if (episode % 10 == 0) or (episode == params['max_episode'] - 1):
             temp = []
