@@ -46,8 +46,6 @@ if __name__ == "__main__":
                         help="subdirectory for this run",
                         required=True)
 
-    parser.add_argument("--log", action="store_true")
-
     parser.add_argument("--double",
                         type=utils.boolify,
                         default=False,
@@ -102,9 +100,9 @@ if __name__ == "__main__":
 
     parser.add_argument("--alpha", default=0.1, help="alpha",
                         type=float)  # alpha for PER
-    
+
     parser.add_argument("--per_beta_start", default=0.4, help="beta for per",type=float)  # beta for PER
-    
+
     parser.add_argument("--should_schedule_beta",
                         type=utils.boolify,
                         default=True,
@@ -115,7 +113,7 @@ if __name__ == "__main__":
                         default="MSELoss",
                         help=
                         """there are two types of loss we can use, MSELoss or HuberLoss""")
-    
+
     parser.add_argument("--learning_rate",
                         type=float,
                         default=0)
@@ -131,7 +129,9 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate_location_side",
                         type=float,
                         default=0)
-    
+
+    parser.add_argument("--log", action="store_true")
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -265,6 +265,8 @@ if __name__ == "__main__":
     meta_logger.add_field("evaluation_rewards", logging_filename)
     meta_logger.add_field("episodic_rewards", logging_filename)
     meta_logger.add_field("average_loss", logging_filename)
+    meta_logger.add_field("average_q", logging_filename)
+    meta_logger.add_field("average_q_star", logging_filename)
 
     G_li = []
     loss_li = []
@@ -284,17 +286,19 @@ if __name__ == "__main__":
             done_p = False if t == env._max_episode_steps else done
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
-        
+
         meta_logger.append_datapoint("episodic_rewards", episodic_rewards, write=True)
         # now update the Q network
         loss = []
 
         for count in range(params['updates_per_episode']):
-            temp = Q_object.update(Q_object_target, count)
+            temp, update_params = Q_object.update(Q_object_target, count)
             loss.append(temp)
 
         loss_li.append(numpy.mean(loss))
         meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
+        meta_logger.append_datapoint("average_q", update_params['average_q'], write=True)
+        meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
 
         if (episode % 10 == 0) or (episode == params['max_episode'] - 1):
             temp = []
@@ -323,5 +327,5 @@ if __name__ == "__main__":
                     print("Creation of the directory %s failed" % path)
                 else:
                     print("Successfully created the directory %s " % path)
-            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode)))
-            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode)))
+            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode) + "_seed_" + str(self.params['seed'])))
+            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode) + "_seed_" + str(self.params['seed'])))

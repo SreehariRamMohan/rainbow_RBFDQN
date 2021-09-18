@@ -166,7 +166,7 @@ class Net(nn.Module):
         else:
             raise NameError('only two kinds of loss can we use, MSELoss or HuberLoss')
 
-        
+
 
         if not self.params['dueling']:
             self.params_dic = [{
@@ -223,7 +223,7 @@ class Net(nn.Module):
         value = self.baseValue_module(features)
         return value
     ### dueling specific methods above ^
-    
+
     def get_centroid_values(self, s):
         '''
         given a batch of s, get all centroid values, [batch x N]
@@ -254,7 +254,7 @@ class Net(nn.Module):
                 values = state_value + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
             elif self.params["dueling_combine_operator"] == 'max':
                 values = state_value + (centroid_advantages - torch.max(centroid_advantages, dim=1, keepdim=True)[0])
-        
+
         allq = torch.bmm(weights, values.unsqueeze(2)).squeeze(2)  # bs x num_centroids
 
         # a -> all_centroids[idx] such that idx is max(dim=1) in allq
@@ -318,7 +318,7 @@ class Net(nn.Module):
             for m in module:
                 if isinstance(m, (NoisyLinear,)):
                     m.eval_noise()
-       
+
         if not self.params["dueling"]:
             eval_module_noise(self.value_module)
             eval_module_noise(self.location_module)
@@ -359,7 +359,7 @@ class Net(nn.Module):
             elif self.params['policy_type'] == 'gaussian':
                 a = self.gaussian_policy(s, episode, train_or_test)
         return a
-        
+
     def policy(self, s, episode, train_or_test):
         '''
         Evalutes the policy
@@ -388,7 +388,7 @@ class Net(nn.Module):
 
     def e_greedy_policy(self, s, episode, train_or_test):
         '''
-        Given state s, at episode, take random action with p=eps if training 
+        Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
         '''
         epsilon = 1.0 / np.power(episode, 1.0 / self.params['policy_parameter'])
@@ -400,7 +400,7 @@ class Net(nn.Module):
 
     def e_greedy_gaussian_policy(self, s, episode, train_or_test):
         '''
-        Given state s, at episode, take random action with p=eps if training 
+        Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
         '''
         epsilon = 1.0 / np.power(episode, 1.0 / self.params['policy_parameter'])
@@ -417,7 +417,7 @@ class Net(nn.Module):
 
     def gaussian_policy(self, s, episode, train_or_test):
         '''
-        Given state s, at episode, take random action with p=eps if training 
+        Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
         '''
         a = self.policy(s, episode, train_or_test)
@@ -427,7 +427,10 @@ class Net(nn.Module):
 
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
-            return 0
+            update_param = {}
+            update_param['average_q'] = 0
+            update_param['average_q_star'] = 0
+            return 0, update_param
 
         if self.params['per']:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
@@ -447,24 +450,24 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
 
         if (self.params["double"]):
-            if not self.params['dueling']:
+            if not self.params['dueling']: # ONLY DOUBLE
                 _, actions = self.get_best_qvalue_and_action(sp_matrix)
-                
-                target_centroids = self.get_centroid_locations(sp_matrix)
-                
+
+                target_centroids = target_Q.get_centroid_locations(sp_matrix)
+
                 centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
-                
+
                 centroid_values = target_Q.get_centroid_values(sp_matrix)
-                
+
                 output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
                 Q_star = output.sum(1, keepdim=True)  # [batch x 1]
-            else:
+            else: # DOUBLE and DUELING
                 _, actions = self.get_best_qvalue_and_action(sp_matrix)
                 target_centroids = target_Q.get_centroid_locations(sp_matrix)
                 centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
-                
-                centroid_advantages = self.get_centroid_advantages(sp_matrix)
-                state_value = self.get_state_value(sp_matrix)
+
+                centroid_advantages = target_Q.get_centroid_advantages(sp_matrix)
+                state_value = target_Q.get_state_value(sp_matrix)
                 if self.params["dueling_combine_operator"] == 'mean':
                     centroid_values = state_value + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
                 elif self.params["dueling_combine_operator"] == 'max':
@@ -472,30 +475,36 @@ class Net(nn.Module):
                 output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
                 Q_star = output.sum(1, keepdim=True)  # [batch x 1]
         else:
-            if self.params['dueling']:
-                _, actions = self.get_best_qvalue_and_action(sp_matrix)
-                target_centroids = self.get_centroid_locations(sp_matrix)
+            if self.params['dueling']: # ONLY DUELING
+                _, actions = target_Q.get_best_qvalue_and_action(sp_matrix)
+                target_centroids = target_Q.get_centroid_locations(sp_matrix)
                 centroid_weights = rbf_function_on_action(target_centroids, actions, self.beta)
-                
-                centroid_advantages = self.get_centroid_advantages(sp_matrix)
-                state_value = self.get_state_value(sp_matrix)
+
+                centroid_advantages = target_Q.get_centroid_advantages(sp_matrix)
+                state_value = target_Q.get_state_value(sp_matrix)
                 if self.params["dueling_combine_operator"] == 'mean':
                     centroid_values = state_value + (centroid_advantages - torch.mean(centroid_advantages, dim=1, keepdim=True))
                 elif self.params["dueling_combine_operator"] == 'max':
                     centroid_values = state_value + (centroid_advantages - torch.max(centroid_advantages, dim=1, keepdim=True)[0])
                 output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
                 Q_star = output.sum(1, keepdim=True)  # [batch x 1]
-            else:
+            else: # NO DOUBLE NO DUELING
                 Q_star, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
 
         if self.params['nstep']:
             Q_star = (self.params["gamma"]**(self.params['nstep_size']-1)) * Q_star
-        
+
         Q_star = Q_star.reshape((self.params['batch_size'], -1))
 
         with torch.no_grad():
             y = r_matrix + self.params['gamma'] * (1 - done_matrix) * Q_star
         y_hat = self.forward(s_matrix, a_matrix)
+
+        update_params = {}
+        average_q_star = torch.mean(Q_star, dim=0).item()
+        average_q = torch.mean(y_hat, dim=0).item()
+        update_params['average_q'] = average_q
+        update_params['average_q_star'] = average_q_star
 
         if self.params['per']:
             td_error = torch.abs(y-y_hat).cpu().detach().numpy()
@@ -515,7 +524,4 @@ class Net(nn.Module):
         if self.params['noisy_layers']:
             self.reset_noise()
             target_Q.reset_noise()
-        return loss.cpu().data.numpy()
-
-        
-        
+        return loss.cpu().data.numpy(), update_params

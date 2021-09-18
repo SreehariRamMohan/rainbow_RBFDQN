@@ -397,9 +397,13 @@ class Net(nn.Module):
 
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
-            return 0
+            update_param = {}
+            update_param['average_q'] = 0
+            update_param['average_q_star'] = 0
+            return 0, update_param
+
         batch_size = self.params['batch_size']
-        
+
         if self.params['per']:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
         else:
@@ -448,12 +452,22 @@ class Net(nn.Module):
             offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
-        
+
         # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
         if self.params['per']:
             td_error = torch.abs(y-y_hat).cpu().detach().numpy()
             self.buffer_object.storage.update_priorities(indexes, td_error)
+
+        average_q = torch.sum(self.value_range.expand(batch_size, self.n_atoms) * y, dim=1)
+        average_q_star = torch.sum(self.value_range.expand(batch_size, self.n_atoms) * dis, dim=1)
+
+        average_q = torch.mean(average_q, dim=0).item()
+        average_q_star = torch.mean(average_q_star, dim=0).item()
+
+        update_param = {}
+        update_param['average_q'] = average_q
+        update_param['average_q_star'] = average_q_star
 
         # loss = self.criterion(y_hat, y.type(torch.float32))
         loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
@@ -471,4 +485,4 @@ class Net(nn.Module):
         if self.params['noisy_layers']:
             self.reset_noise()
             target_Q.reset_noise()
-        return loss.cpu().data.numpy()
+        return loss.cpu().data.numpy(), update_param

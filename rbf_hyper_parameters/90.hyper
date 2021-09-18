@@ -19,6 +19,6 @@ updates_per_episode,1000,integer
 dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,gaussian,string
-noise,0.1,float
+noise,0.05,float
 per_beta_start,0.8,float
 alpha,0.10,float
