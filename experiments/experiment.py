@@ -129,6 +129,9 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate_location_side",
                         type=float,
                         default=0)
+    parser.add_argument("--target_network_learning_rate",
+                        type=float,
+                        default=0)
 
     parser.add_argument("--log", action="store_true")
 
@@ -149,6 +152,7 @@ if __name__ == "__main__":
 
     for arg_name, arg_value in other_args:
         utils.update_param(params, arg_name, arg_value)
+        
     params['hyperparams_dir'] = hyperparams_dir
     params['start_time'] = str(datetime.datetime.now())
     params['seed_number'] = args.seed
@@ -173,7 +177,8 @@ if __name__ == "__main__":
         params['vmax'] = args.vmax
     if args.learning_rate_location_side:
         params['learning_rate_location_side'] = args.learning_rate_location_side
-
+    if args.target_network_learning_rate:
+        params['target_network_learning_rate'] = args.target_network_learning_rate
     #params['beta'] = args.beta
 
     print("Distributional:", params["distributional"])
