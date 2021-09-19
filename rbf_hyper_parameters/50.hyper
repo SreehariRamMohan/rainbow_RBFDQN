@@ -20,3 +20,7 @@ dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,gaussian,string
 noise,0.25,float
+vmin,-200,integer
+vmax,200,integer
+num_atoms,51,integer
+alpha,0.10,float
