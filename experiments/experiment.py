@@ -152,7 +152,7 @@ if __name__ == "__main__":
 
     for arg_name, arg_value in other_args:
         utils.update_param(params, arg_name, arg_value)
-        
+
     params['hyperparams_dir'] = hyperparams_dir
     params['start_time'] = str(datetime.datetime.now())
     params['seed_number'] = args.seed
@@ -332,5 +332,5 @@ if __name__ == "__main__":
                     print("Creation of the directory %s failed" % path)
                 else:
                     print("Successfully created the directory %s " % path)
-            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode) + "_seed_" + str(self.params['seed'])))
-            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode) + "_seed_" + str(self.params['seed'])))
+            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode) + "_seed_" + str(args.seed)))
+            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode) + "_seed_" + str(args.seed)))
