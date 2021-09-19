@@ -7,6 +7,11 @@ import seaborn as sns
 sns.set()
 from pathlib import Path
 
+'''
+Onager Prelaunch command
+onager prelaunch +jobname distributional_ant_sweep_location_lr +command "python -u experiments/experiment.py --hyper_parameter_name 50 --experiment_name ./results/Ant --reward_norm clip --distributional True --learning_rate 1e-5 --vmin 0.0 --vmax 500.0 --numpoints 130 --num_atoms 101" +arg --learning_rate_location_side 1e-5 1e-4 1e-3 1e-2 1e-1 +arg --seed 0 +tag --run_title +tag-args --learning_rate_location_side --seed
+'''
+
 from common.plotting_utils import get_scores, generate_plot, get_all_run_titles, get_all_runs_and_subruns
 
 
@@ -24,6 +29,8 @@ def make_graphs(experiment_name,
     if run_titles is None:
         print("Using all runs in experiment")
         run_titles = get_all_run_titles(experiment_name=experiment_name)
+
+    run_titles = list(filter(lambda x: not "*" in x, run_titles))
 
     log_dirs = [
         os.path.join(experiment_name, run_title) for run_title in run_titles
@@ -117,7 +124,7 @@ def main():
     Set this flag to true if you are pointing the plot_learning_curve script to an onager experiment folder
     The use case of this is if you have >> (many many) run folders you want to comb through for the best performance.
     '''
-    USE_ONAGER = True
+    USE_ONAGER = False
 
     ## Options (Uncomment as needed)
     # smoothen = True
@@ -126,7 +133,9 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "/home/sreehari/Downloads/Ant"
+    experiment_name = "./results/HalfCheetah"
+    #experiment_name = "/home/sreehari/Downloads/Onager Sweeps Rainbow RBFDQN/Ant2/"
+
     run_titles = get_all_run_titles(experiment_name)
     make_graphs(experiment_name,
                 subdir,
