@@ -228,8 +228,10 @@ if __name__ == "__main__":
 
     params['layer_normalization'] = args.layer_normalization
     params['noisy_layers'] = args.noisy_layers
+    params['noisy_where'] = args.noisy_where
 
     print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
+    print("Noisy Layers Applied to: ", params['noisy_where'])
 
     print("reward normalization: ", params['reward_norm'])
 
