@@ -37,6 +37,26 @@ def get_hyper_parameters(name, alg):
 				sys.exit(1)
 	return meta_params
 
+def get_hyper_parameters_after_training(dir):
+	meta_params = {}
+	with open(dir) as f:
+		lines = [line.rstrip('\n') for line in f]
+		for l in lines:
+			parameter_name, parameter_value, parameter_type = (l.split(','))
+			if parameter_type == 'string':
+				meta_params[parameter_name] = str(parameter_value)
+			elif parameter_type == 'integer':
+				meta_params[parameter_name] = int(parameter_value)
+			elif parameter_type == 'float':
+				meta_params[parameter_name] = float(parameter_value)
+			elif parameter_type == 'boolean':
+				meta_params[parameter_name] = (parameter_value=="True")
+			else:
+				print("unknown parameter type ... aborting")
+				print(l)
+				sys.exit(1)
+	return meta_params
+
 
 def sync_networks(target, online, alpha, copy=False):
 	if copy == True:
@@ -57,13 +77,13 @@ def load_exp(params, alg, exp):
 	li_loss = []
 	if 'save_prepend' in params:
 		li_returns = numpy.loadtxt(directory + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt")
-	else: 
+	else:
 		li_returns = numpy.loadtxt(directory + str(params['seed_number']) + ".txt")
-	
+
 	directory = alg + "_results/" + params['hyper_parameters_name'] + '/'+ exp + '/loss_'
 	if 'save_prepend' in params:
 		li_loss = numpy.loadtxt(directory  + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt")
-	else: 
+	else:
 		li_loss = numpy.loadtxt(directory + str(params['seed_number']) + ".txt")
 	return li_returns.tolist(), li_loss.tolist()
 
@@ -77,34 +97,34 @@ def save_exp(li_returns, li_loss, params, alg, exp):
 	directory = alg + "_results/" + params['hyper_parameters_name'] + '/' + exp + '/'
 	if not os.path.exists(directory):
 		os.makedirs(directory)
-	
+
 	if 'save_prepend' in params:
 		numpy.savetxt(directory + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt", li_returns)
-	else: 
+	else:
 		numpy.savetxt(directory + str(params['seed_number']) + ".txt", li_returns)
-	
+
 	directory = alg + "_results/" + params['hyper_parameters_name'] + '/'+ exp + '/loss_'
-	
+
 	if 'save_prepend' in params:
 		numpy.savetxt(directory  + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt", li_loss)
-	else: 
+	else:
 		numpy.savetxt(directory + str(params['seed_number']) + ".txt", li_loss)
 
 def save(li_returns, li_loss, params, alg):
 	directory = alg + "_results/" + params['hyper_parameters_name'] + '/'
 	if not os.path.exists(directory):
 		os.makedirs(directory)
-	
+
 	if 'save_prepend' in params:
 		numpy.savetxt(directory + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt", li_returns)
-	else: 
+	else:
 		numpy.savetxt(directory + str(params['seed_number']) + ".txt", li_returns)
-	
+
 	directory = alg + "_results/" + params['hyper_parameters_name'] + '/loss_'
-	
+
 	if 'save_prepend' in params:
 		numpy.savetxt(directory  + params['save_prepend'] + "_" + str(params['seed_number']) + ".txt", li_loss)
-	else: 
+	else:
 		numpy.savetxt(directory + str(params['seed_number']) + ".txt", li_loss)
 
 	# In addition to logging the results above, we will also log them in the results/<experiment_name>/<run_title> folder
