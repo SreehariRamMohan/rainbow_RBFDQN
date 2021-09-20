@@ -140,6 +140,13 @@ if __name__ == "__main__":
     parser.add_argument("--target_network_learning_rate",
                         type=float,
                         default=0)
+    parser.add_argument("--regularize_centroid_spread")
+    parser.add_argument("--regularize_centroid_spread_parameter",
+                        type=float,
+                        default=0)
+    parser.add_argument("--regularize_centroid_central_parameter",
+                        type=float,
+                        default=0)
 
     parser.add_argument("--log", action="store_true")
 
@@ -194,11 +201,19 @@ if __name__ == "__main__":
         params['learning_rate_location_side'] = args.learning_rate_location_side
     if args.target_network_learning_rate:
         params['target_network_learning_rate'] = args.target_network_learning_rate
+    if args.regularize_centroid_spread_parameter:
+        params['regularize_centroid_spread_parameter'] = args.regularize_centroid_spread_parameter
+    if args.regularize_centroid_central_parameter:
+        params['regularize_centroid_central_parameter'] = args.regularize_centroid_central_parameter
     #params['beta'] = args.beta
+<<<<<<< HEAD
+    breakpoint()
+=======
     params['sigma_noise'] = args.sigma_noise
     if args.policy_type != "unset":
         params['policy_type'] = args.policy_type
 
+>>>>>>> 0ced89495db10cb883c514dee802e795665101c7
     print("Distributional:", params["distributional"])
 
     # Rainbow RBF-DQN improvements
