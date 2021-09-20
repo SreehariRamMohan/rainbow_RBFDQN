@@ -206,14 +206,9 @@ if __name__ == "__main__":
     if args.regularize_centroid_central_parameter:
         params['regularize_centroid_central_parameter'] = args.regularize_centroid_central_parameter
     #params['beta'] = args.beta
-<<<<<<< HEAD
-    breakpoint()
-=======
     params['sigma_noise'] = args.sigma_noise
     if args.policy_type != "unset":
         params['policy_type'] = args.policy_type
-
->>>>>>> 0ced89495db10cb883c514dee802e795665101c7
     print("Distributional:", params["distributional"])
 
     # Rainbow RBF-DQN improvements
