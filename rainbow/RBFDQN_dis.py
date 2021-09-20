@@ -261,7 +261,7 @@ class Net(nn.Module):
         # [batch x N]
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)
         output = torch.bmm(centroid_weights.unsqueeze(1), centroid_distributions).squeeze(1) # [batch x N]
-        return output
+        return output, centroid_locations
 
     def train_noisy(self):
         """
@@ -454,7 +454,7 @@ class Net(nn.Module):
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
         # [s a r s_, a_,]
-        y_hat = self.forward(s_matrix, a_matrix)
+        y_hat, centroid_locations = self.forward(s_matrix, a_matrix)
         if self.params['per']:
             td_error = torch.abs(y-y_hat).cpu().detach().numpy()
             self.buffer_object.storage.update_priorities(indexes, td_error)
@@ -469,9 +469,18 @@ class Net(nn.Module):
         update_param['average_q'] = average_q
         update_param['average_q_star'] = average_q_star
 
-        # loss = self.criterion(y_hat, y.type(torch.float32))
-        loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
-        loss = torch.mean(loss)
+        loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1).mean()  # (m , N_ATOM)
+        if self.params['regularize_centroid_spread']:
+            Regularization_1 = self.params['regularize_centroid_spread_parameter']*centroid_locations.pow(2).mean()
+        else:
+            Regularization_1 = 0
+        if self.params['regularize_centroid_central']:
+            Regularization_2 = (centroid_locations.repeat(1, 1, self.N) - torch.reshape(centroid_locations, (self.params['batch_size'], 1, -1))).pow(2).mean()
+            Regularization_2 = -1*self.params['regularize_centroid_central_parameter']*Regularization_2
+        else:
+            Regularization_2 = 0
+        loss = loss + Regularization_1 + Regularization_2
+
         self.zero_grad()
         loss.backward()
         self.optimizer.step()
