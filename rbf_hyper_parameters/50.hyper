@@ -21,6 +21,7 @@ optimizer,Adam,string
 policy_type,gaussian,string
 noise,0.25,float
 alpha,0.10,float
+per_beta_start,0.40,float
 vmin,0,float
 vmax,500,float
 num_atoms,101,integer

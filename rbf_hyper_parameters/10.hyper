@@ -23,3 +23,4 @@ vmin,-600,integer
 vmax,300,integer
 num_atoms,51,integer
 alpha,0.10,float
+per_beta_start,0.4,float

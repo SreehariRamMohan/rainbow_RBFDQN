@@ -20,6 +20,7 @@ dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,e_greedy,string
 alpha,0.10,float
+per_beta_start,0.40,float
 vmin,0,float
 vmax,500,float
 num_atoms,101,integer
