@@ -324,6 +324,9 @@ if __name__ == "__main__":
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
 
+        if (params['nstep']):
+            Q_object.buffer_object.on_episode_end()
+
         meta_logger.append_datapoint("episodic_rewards", episodic_rewards, write=True)
         # now update the Q network
         loss = []
