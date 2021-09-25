@@ -140,7 +140,9 @@ if __name__ == "__main__":
     parser.add_argument("--target_network_learning_rate",
                         type=float,
                         default=0)
-    parser.add_argument("--regularize_centroid_spread")
+    parser.add_argument("--regularize_centroid_spread",
+                        type=boolify,
+                        default=False)
     parser.add_argument("--regularize_centroid_spread_parameter",
                         type=float,
                         default=0)
