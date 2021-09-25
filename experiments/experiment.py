@@ -325,7 +325,7 @@ if __name__ == "__main__":
             s = sp
 
         if (params['nstep']):
-            Q_object.buffer_object.on_episode_end()
+            Q_object.buffer_object.storage.on_episode_end()
 
         meta_logger.append_datapoint("episodic_rewards", episodic_rewards, write=True)
         # now update the Q network
