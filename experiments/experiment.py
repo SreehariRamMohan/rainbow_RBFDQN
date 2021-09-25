@@ -149,6 +149,9 @@ if __name__ == "__main__":
     parser.add_argument("--regularize_centroid_central_parameter",
                         type=float,
                         default=0)
+    parser.add_argument("--regularize_centroid_central",
+                        type=utils.boolify,
+                        default=False)
 
     parser.add_argument("--log", action="store_true")
 
@@ -205,8 +208,12 @@ if __name__ == "__main__":
         params['target_network_learning_rate'] = args.target_network_learning_rate
     if args.regularize_centroid_spread_parameter:
         params['regularize_centroid_spread_parameter'] = args.regularize_centroid_spread_parameter
+    if args.regularize_centroid_spread:
+        params['regularize_centroid_spread'] = args.regularize_centroid_spread
     if args.regularize_centroid_central_parameter:
         params['regularize_centroid_central_parameter'] = args.regularize_centroid_central_parameter
+    if args.regularize_centroid_central:
+        params['regularize_centroid_central'] = args.regularize_centroid_central
     #params['beta'] = args.beta
     params['sigma_noise'] = args.sigma_noise
     if args.policy_type != "unset":
