@@ -141,7 +141,7 @@ if __name__ == "__main__":
                         type=float,
                         default=0)
     parser.add_argument("--regularize_centroid_spread",
-                        type=boolify,
+                        type=utils.boolify,
                         default=False)
     parser.add_argument("--regularize_centroid_spread_parameter",
                         type=float,
