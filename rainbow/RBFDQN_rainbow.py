@@ -104,7 +104,8 @@ class Net(nn.Module):
                 noisy_linear(self.params['layer_size'], self.N),
             )
         else:
-            self.featureExtraction_module = nn.Sequential(
+    
+            self.advantage_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -112,9 +113,7 @@ class Net(nn.Module):
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
                 noisy_linear(self.params['layer_size'], self.params['layer_size']),
-            )
-
-            self.advantage_module = nn.Sequential(
+                nn.ReLU(),
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -122,6 +121,14 @@ class Net(nn.Module):
             )
 
             self.baseValue_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -201,9 +208,7 @@ class Net(nn.Module):
             {
                 'params': self.baseValue_module.parameters(), 'lr': self.params['learning_rate']
             },
-            {
-                'params': self.featureExtraction_module.parameters(), 'lr': self.params['learning_rate']
-            }]
+            ]
         try:
             if self.params['optimizer'] == 'RMSprop':
                 self.optimizer = optim.RMSprop(self.params_dic)
@@ -223,8 +228,7 @@ class Net(nn.Module):
         '''
         assert self.params['dueling']
 
-        features = self.featureExtraction_module(s)
-        centroid_advantages = self.advantage_module(features)
+        centroid_advantages = self.advantage_module(s)
         return centroid_advantages
 
     def get_state_value(self, s):
@@ -233,8 +237,7 @@ class Net(nn.Module):
         '''
         assert self.params['dueling']
 
-        features = self.featureExtraction_module(s)
-        value = self.baseValue_module(features)
+        value = self.baseValue_module(s)
         return value
     ### dueling specific methods above ^
 
@@ -320,7 +323,6 @@ class Net(nn.Module):
         else:
             train_module_noise(self.baseValue_module)
             train_module_noise(self.advantage_module)
-            train_module_noise(self.featureExtraction_module)
             train_module_noise(self.location_module)
 
     def eval_noisy(self):
@@ -339,7 +341,6 @@ class Net(nn.Module):
         else:
             eval_module_noise(self.baseValue_module)
             eval_module_noise(self.advantage_module)
-            eval_module_noise(self.featureExtraction_module)
             eval_module_noise(self.location_module)
 
     def reset_noise(self):
@@ -355,7 +356,6 @@ class Net(nn.Module):
         if not self.params['dueling']:
             reset_module_noise(self.value_module)
         else:
-            reset_module_noise(self.featureExtraction_module)
             reset_module_noise(self.advantage_module)
             reset_module_noise(self.baseValue_module)
 
