@@ -91,6 +91,14 @@ if __name__ == "__main__":
                         """use noisy linear layers instead of linear
                         layers for all hidden layers""")
 
+    parser.add_argument("--noisy_where",
+                        type=str,
+                        default="both",
+                        choices=["both","centroid","value"],
+                        help=
+                        """Specify where noisy layers should be inserted:
+                        centroid, value, or both""")
+
     parser.add_argument("--distributional",
                         type=utils.boolify,
                         default=False,
@@ -100,7 +108,7 @@ if __name__ == "__main__":
     parser.add_argument("--logged_hyperparams_dir",
                         type=str,
                         help="we need that to load the hyper file we are using for the training.",
-                        default="results/HalfCheetah/distributional_sweep/hyperparams/40__seed_0.hyper",
+                        default="results/HalfCheetah/vanilla/hyperparams/40__seed_1.hyper",
                         required=False)
 
     parser.add_argument("--log_centroid_location",
@@ -108,6 +116,12 @@ if __name__ == "__main__":
                         default=False,
                         help=
                         """logging centroid location""")
+
+    parser.add_argument("--log_qvalue",
+                        type=utils.boolify,
+                        default=False,
+                        help=
+                        """logging qvalue and it's corresponding state and action""")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -140,6 +154,7 @@ if __name__ == "__main__":
     params['double'] = args.double
     print("Double:", params["double"])
 
+
     if (args.nstep != 1):
         params["nstep"] = True
         params["nstep_size"] = args.nstep
@@ -161,6 +176,7 @@ if __name__ == "__main__":
 
     params['layer_normalization'] = args.layer_normalization
     params['noisy_layers'] = args.noisy_layers
+    params['noisy_where'] = args.noisy_where
 
     print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
 
@@ -176,7 +192,7 @@ if __name__ == "__main__":
     env = gym.make(params["env_name"])
 
     params['env'] = env
-
+    #breakpoint()
     utils_for_q_learning.set_random_seed(params)
     s0 = env.reset()
     utils_for_q_learning.action_checker(env)
@@ -195,9 +211,9 @@ if __name__ == "__main__":
                                      action_size=len(env.action_space.low),
                                      device=device)
     # here please fill in the main directory for your stored model
-    saved_network_dir = "./results/HalfCheetah/distributional_sweep/logs/"
+    saved_network_dir = "./results/HalfCheetah/vanilla/logs/"
     # specify the model that will actually interact with the environment.
-    actor = "target_episode_1700_seed_0"
+    actor = "target_episode_1950_seed_1"
     Q_object.load_state_dict(torch.load(saved_network_dir + actor))
     Q_object.eval()
 
@@ -258,6 +274,12 @@ if __name__ == "__main__":
                     plt.legend(loc='upper left')
                     plt.savefig("centroid_graph/" +str(i)+"_step_"+key)
                     plt.clf()
+            if args.log_qvalue:
+                obs = numpy.array(obs).reshape(1, len(s0))
+                obs = torch.from_numpy(obs).float().to(device)
+                with torch.no_grad():
+                    bestQ, bestAction = Q_object.get_best_qvalue_and_action(obs)
+                    print(bestQ)
 
 
             obs, reward, done, info = env.step(action)
@@ -265,7 +287,7 @@ if __name__ == "__main__":
 
             #print("action taken:", action, "finished? ", done)
 
-            #env.render()
+            env.render()
             if done:
                 num_success += 1
                 break
