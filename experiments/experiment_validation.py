@@ -10,10 +10,11 @@ import datetime
 import sys
 from sklearn.decomposition import PCA
 sys.path.append("..")
+import matplotlib
 import matplotlib.pyplot as plt
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
-
+import torch.nn.functional as F
 from rainbow.RBFDQN_rainbow import Net
 from rainbow.RBFDQN_dis import Net as DistributionalNet
 from pathlib import Path
@@ -21,6 +22,24 @@ import glob
 import torch
 import numpy
 import gym
+
+def rbf_function(centroid_locations, action_set, beta):
+    '''
+    centroid_locations: Tensor [batch x num_centroids (N) x a_dim (action_size)]
+    action_set: Tensor [batch x num_act x a_dim (action_size)]
+        - Note: pass in num_act = 1 if you want a single action evaluated
+    beta: float
+        - Parameter for RBF function
+
+    Description: Computes the RBF function given centroid_locations and some actions
+    '''
+    assert len(centroid_locations.shape) == 3, "Must pass tensor with shape: [batch x N x a_dim]"
+    assert len(action_set.shape) == 3, "Must pass tensor with shape: [batch x num_act x a_dim]"
+
+    diff_norm = torch.cdist(centroid_locations, action_set, p=2)  # batch x N x num_act
+    diff_norm = diff_norm * beta * -1
+    weights = F.softmax(diff_norm, dim=2)  # batch x N x num_act
+    return weights
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -235,8 +254,8 @@ if __name__ == "__main__":
                                                        state_size=len(s0),
                                                        action_size=len(env.action_space.low),
                                                        device=device)
-                Q_objects[key].load_state_dict(torch.load(network))
-                Q_objects[key].eval()
+            Q_objects[key].load_state_dict(torch.load(network))
+            Q_objects[key].eval()
 
 
     # Logging with Meta Logger
@@ -254,29 +273,44 @@ if __name__ == "__main__":
 
     num_episodes = 1
     num_success = 0
+
     for j in range(num_episodes):
         print("episode:", j)
         obs = env.reset()
 
         for i in range(2000):
-            action = Q_object.e_greedy_policy(obs, j + 1, 'test')
-            #action = env.action_space.sample()
+            obs = numpy.array(obs).reshape(1, len(s0))
+            obs = torch.from_numpy(obs).float().to(device)
+            with torch.no_grad():
+                best, action = Q_object.get_best_qvalue_and_action(obs)
+                action = action.cpu().numpy()
+
+
+
             if args.log_centroid_location:
-                obs = numpy.array(obs).reshape(1, len(s0))
-                obs = torch.from_numpy(obs).float().to(device)
+
                 for key in Q_objects:
 
                     with torch.no_grad():
-                        all_centroids = Q_objects[key].get_centroid_locations(obs).cpu().numpy().squeeze()
+                        all_centroids = Q_objects[key].get_centroid_locations(obs)
+                        weights = rbf_function(all_centroids, all_centroids, Q_objects[key].params['temperature'])
+                        values = Q_objects[key].get_centroid_values(obs)
+                        allq = torch.bmm(weights, values.unsqueeze(2)).squeeze().cpu().numpy()
+
+                    all_centroids = all_centroids.cpu().numpy().squeeze()
+                    print("network:",key, "  ",allq)
+                    #print("network ", key, numpy.max(allq), ' No:', numpy.argmax(allq))
                     pca = PCA(n_components=2)
                     data = pca.fit_transform(all_centroids)
-                    plt.scatter(data[:,0],data[:,1] , label = key)
+                    plt.scatter(data[:,0],data[:,1] , label = key, c=allq, cmap='Reds', norm = matplotlib.colors.Normalize(vmin=-100, vmax=1400))
                     plt.legend(loc='upper left')
+
+
                     plt.savefig("centroid_graph/" +str(i)+"_step_"+key)
                     plt.clf()
             if args.log_qvalue:
-                obs = numpy.array(obs).reshape(1, len(s0))
-                obs = torch.from_numpy(obs).float().to(device)
+                #obs = numpy.array(obs).reshape(1, len(s0))
+                #obs = torch.from_numpy(obs).float().to(device)
                 with torch.no_grad():
                     bestQ, bestAction = Q_object.get_best_qvalue_and_action(obs)
                     print(bestQ)
