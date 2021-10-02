@@ -232,14 +232,14 @@ if __name__ == "__main__":
     # here please fill in the main directory for your stored model
     saved_network_dir = "./results/HalfCheetah/vanilla/logs/"
     # specify the model that will actually interact with the environment.
-    actor = "target_episode_1950_seed_1"
+    actor = "s_target_episode_0_seed_1"
     Q_object.load_state_dict(torch.load(saved_network_dir + actor))
     Q_object.eval()
 
 
     if args.log_centroid_location:
         Q_objects = {}
-        glob_pattern = saved_network_dir + "target*"
+        glob_pattern = saved_network_dir + "s_target*"
         for network in glob.glob(glob_pattern):
             key = network[network.rfind('/')+1:]
             if not params['distributional']:
@@ -277,18 +277,25 @@ if __name__ == "__main__":
     for j in range(num_episodes):
         print("episode:", j)
         obs = env.reset()
+        obs = numpy.array(obs).reshape(1, len(s0))
+        obs = torch.from_numpy(obs).float().to(device)
+        # getting one single pca scheme, and we use the same one for one episode
+        with torch.no_grad():
+            all_centroids = Q_object.get_centroid_locations(obs)
+        all_centroids = all_centroids.cpu().numpy().squeeze()
+        pca = PCA(n_components=2)
+        pca.fit(all_centroids)
 
         for i in range(2000):
-            obs = numpy.array(obs).reshape(1, len(s0))
-            obs = torch.from_numpy(obs).float().to(device)
+
             with torch.no_grad():
                 best, action = Q_object.get_best_qvalue_and_action(obs)
                 action = action.cpu().numpy()
 
 
-
             if args.log_centroid_location:
 
+                centroid_locations_container = {}
                 for key in Q_objects:
 
                     with torch.no_grad():
@@ -298,16 +305,35 @@ if __name__ == "__main__":
                         allq = torch.bmm(weights, values.unsqueeze(2)).squeeze().cpu().numpy()
 
                     all_centroids = all_centroids.cpu().numpy().squeeze()
+                    centroid_locations_container[key] = all_centroids
+
                     print("network:",key, "  ",allq)
                     #print("network ", key, numpy.max(allq), ' No:', numpy.argmax(allq))
-                    pca = PCA(n_components=2)
-                    data = pca.fit_transform(all_centroids)
-                    plt.scatter(data[:,0],data[:,1] , label = key, c=allq, cmap='Reds', norm = matplotlib.colors.Normalize(vmin=-100, vmax=1400))
+
+
+                    data = pca.transform(all_centroids)
+
+                    plt.scatter(data[:,0],data[:,1], label = key, c=allq) # cmap='Reds', norm = matplotlib.colors.Normalize(vmin=-100, vmax=1400))
+                    plt.colorbar()
                     plt.legend(loc='upper left')
-
-
                     plt.savefig("centroid_graph/" +str(i)+"_step_"+key)
                     plt.clf()
+
+                dataBeforePCA = []
+                dataIndicator = []
+                for key in centroid_locations_container.keys():
+                    dataBeforePCA.append(centroid_locations_container[key])
+                    dataIndicator.append(key)
+                dataBeforePCA = numpy.vstack(dataBeforePCA)
+                pca_for_all = PCA(n_components=2)
+                dataAfterPCA = pca_for_all.fit_transform(dataBeforePCA)
+                for index in range(len(dataIndicator)):
+                    plt.scatter(dataAfterPCA[index*params['num_points']:(index+1)*params['num_points'],0], dataAfterPCA[index*params['num_points']:(index+1)*params['num_points'],1], label =dataIndicator[index])
+                    plt.legend(loc='upper left')
+                plt.savefig("centroid_graph/"+"step_"+str(i))
+                plt.clf()
+                #plt.show()
+
             if args.log_qvalue:
                 #obs = numpy.array(obs).reshape(1, len(s0))
                 #obs = torch.from_numpy(obs).float().to(device)
@@ -317,11 +343,13 @@ if __name__ == "__main__":
 
 
             obs, reward, done, info = env.step(action)
+            obs = numpy.array(obs).reshape(1, len(s0))
+            obs = torch.from_numpy(obs).float().to(device)
             print("timestep:",i , "getting reward:", reward)
 
             #print("action taken:", action, "finished? ", done)
 
-            env.render()
+            #env.render()
             if done:
                 num_success += 1
                 break
