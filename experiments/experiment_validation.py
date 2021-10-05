@@ -10,11 +10,10 @@ import datetime
 import sys
 from sklearn.decomposition import PCA
 sys.path.append("..")
-import matplotlib
 import matplotlib.pyplot as plt
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
-import torch.nn.functional as F
+
 from rainbow.RBFDQN_rainbow import Net
 from rainbow.RBFDQN_dis import Net as DistributionalNet
 from pathlib import Path
