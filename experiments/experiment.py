@@ -153,6 +153,10 @@ if __name__ == "__main__":
                         type=utils.boolify,
                         default=False)
 
+    parser.add_argument("--temperature",
+                        type=float,
+                        required=False)
+
     parser.add_argument("--log", action="store_true")
 
     parser.add_argument("--sigma_noise", default=0.5, help="sigma",
@@ -212,6 +216,9 @@ if __name__ == "__main__":
     params['regularize_centroid_spread'] = args.regularize_centroid_spread
     if args.regularize_centroid_central_parameter:
         params['regularize_centroid_central_parameter'] = args.regularize_centroid_central_parameter
+
+    if args.temperature:
+        params['temperature'] = args.temperature
 
     params['regularize_centroid_central'] = args.regularize_centroid_central
     #params['beta'] = args.beta
