@@ -428,12 +428,12 @@ class Net(nn.Module):
         # Q_star = Q_star.reshape((self.params['batch_size'], -1))
         with torch.no_grad():
             if self.params['double']:
-                _, _, _, info = self.get_best_qvalue_and_action(sp_matrix) # get indices from the online agent
-                indices = info["indices"]
+                _, _, actions, _ = self.get_best_qvalue_and_action(sp_matrix)
                 _, _, _, info = target_Q.get_best_qvalue_and_action(sp_matrix)
+                target_centroids = target_Q.get_centroid_locations(sp_matrix)
                 alldis = info["alldis"]
-                dis = torch.index_select(alldis, 1, indices)
-                dis = torch.diagonal(dis, dim1=0, dim2=1).T
+                weights = rbf_function_on_action(target_centroids, actions, self.beta)
+                dis = torch.bmm(weights.unsqueeze(1), alldis).squeeze()
             else:
                 best, dis, a, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
             if self.params['nstep']:
