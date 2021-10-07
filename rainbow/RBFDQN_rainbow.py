@@ -457,12 +457,7 @@ class Net(nn.Module):
         else:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
 
-        if self.params['reward_norm'] == "clip":
-            r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
-        elif self.params['reward_norm'] == "max":
-            r_matrix = r_matrix * (1.0 / self.params['reward_max'])
-            r_matrix = numpy.clip(r_matrix, a_min=-1, a_max=1)
-
+        r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
         s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
         a_matrix = torch.from_numpy(a_matrix).float().to(self.device)
         r_matrix = torch.from_numpy(r_matrix).float().to(self.device)

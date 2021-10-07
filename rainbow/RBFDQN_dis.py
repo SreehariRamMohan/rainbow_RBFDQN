@@ -202,10 +202,11 @@ class Net(nn.Module):
             features = self.featureExtraction_module(s)
             baseValue = self.baseValue_module(features).reshape(batch_size, 1, -1)  # [batch x 1 x n_atoms]
             advantages = self.advantage_module(features).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
-            if self.params["dueling_combine_operator"] == 'mean':
-                logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
-            elif self.params["dueling_combine_operator"] == 'max':
-                logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
+            logits = baseValue + advantages
+            # if self.params["dueling_combine_operator"] == 'mean':
+            #     logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
+            # elif self.params["dueling_combine_operator"] == 'max':
+            #     logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
         else:
             logits = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
         centroid_distributions = torch.softmax(logits, dim=2)
@@ -218,10 +219,11 @@ class Net(nn.Module):
             features = self.featureExtraction_module(s)
             baseValue = self.baseValue_module(features).reshape(batch_size, 1, -1)  # [batch x 1 x n_atoms]
             advantages = self.advantage_module(features).reshape(batch_size, self.N, -1)  # [batch x N x n_atoms]
-            if self.params["dueling_combine_operator"] == 'mean':
-                logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
-            elif self.params["dueling_combine_operator"] == 'max':
-                logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
+            logits = baseValue + advantages
+            # if self.params["dueling_combine_operator"] == 'mean':
+            #     logits = baseValue + (advantages - torch.mean(advantages, dim=1, keepdim=True))
+            # elif self.params["dueling_combine_operator"] == 'max':
+            #     logits = baseValue + (advantages - torch.max(advantages, dim=1, keepdim=True)[0])
         else:
             logits = self.value_module(s).reshape(batch_size, self.N, -1)
         centroid_distributions = torch.softmax(logits, dim=2)
@@ -260,7 +262,7 @@ class Net(nn.Module):
         centroid_locations = self.get_centroid_locations(s)
         # [batch x N]
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)
-        output = torch.bmm(centroid_weights.unsqueeze(1), centroid_distributions).squeeze(1) # [batch x N]
+        output = torch.bmm(centroid_weights.unsqueeze(1), centroid_distributions).squeeze(1)  # [batch x N]
         return output, centroid_locations
 
     def train_noisy(self):
@@ -409,17 +411,7 @@ class Net(nn.Module):
         else:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
 
-        assert self.params['reward_norm'] in ['clip', 'max', 'clip_max', 'none']
-        if self.params['reward_norm'] == "clip":
-            r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
-        elif self.params['reward_norm'] == "max":
-            r_matrix = r_matrix * (1.0/self.params['reward_max'])
-        elif self.params['reward_norm'] == "clip_max":
-            r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
-            r_matrix = r_matrix * (1.0 / self.params['reward_max'])
-        elif self.params['reward_norm'] == "none":
-            r_matrix = r_matrix
-
+        r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
         s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
         a_matrix = torch.from_numpy(a_matrix).float().to(self.device)
         r_matrix = torch.from_numpy(r_matrix).float().to(self.device)
