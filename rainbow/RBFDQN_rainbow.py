@@ -29,7 +29,7 @@ def rbf_function_on_action(centroid_locations, action, beta):
     diff_norm = diff_norm ** 2
     diff_norm = torch.sum(diff_norm, dim=2)
     diff_norm = torch.sqrt(diff_norm + 1e-7)
-    diff_norm = diff_norm * beta * -1
+    diff_norm = diff_norm * beta.to(diff_norm.device) * -1
     weights = F.softmax(diff_norm, dim=1)  # batch x N
     return weights
 
@@ -46,9 +46,8 @@ def rbf_function(centroid_locations, action_set, beta):
     '''
     assert len(centroid_locations.shape) == 3, "Must pass tensor with shape: [batch x N x a_dim]"
     assert len(action_set.shape) == 3, "Must pass tensor with shape: [batch x num_act x a_dim]"
-
     diff_norm = torch.cdist(centroid_locations, action_set, p=2)  # batch x N x num_act
-    diff_norm = diff_norm * beta * -1
+    diff_norm = diff_norm * beta.to(diff_norm.device) * -1
     weights = F.softmax(diff_norm, dim=2)  # batch x N x num_act
     return weights
 
@@ -62,7 +61,13 @@ class Net(nn.Module):
         self.params = params
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
-        self.beta = self.params['temperature']
+        self.beta = torch.Tensor([self.params['temperature']])
+
+        if (self.params['random_betas']):
+            # initialize random betas to be between 0 and 0.25 for each centroid. 
+            # the random betas are fixed for each centroid index throughout training.
+            self.beta = torch.rand(1, self.N)*0.25
+            #self.beta.to(self.device)
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
