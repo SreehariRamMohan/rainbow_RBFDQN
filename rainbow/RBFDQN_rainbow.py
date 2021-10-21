@@ -29,7 +29,7 @@ def rbf_function_on_action(centroid_locations, action, beta):
     diff_norm = diff_norm ** 2
     diff_norm = torch.sum(diff_norm, dim=2)
     diff_norm = torch.sqrt(diff_norm + 1e-7)
-    diff_norm = diff_norm * beta * -1
+    diff_norm = diff_norm * beta.to(diff_norm.device) * -1
     weights = F.softmax(diff_norm, dim=1)  # batch x N
     return weights
 
@@ -46,9 +46,8 @@ def rbf_function(centroid_locations, action_set, beta):
     '''
     assert len(centroid_locations.shape) == 3, "Must pass tensor with shape: [batch x N x a_dim]"
     assert len(action_set.shape) == 3, "Must pass tensor with shape: [batch x num_act x a_dim]"
-
     diff_norm = torch.cdist(centroid_locations, action_set, p=2)  # batch x N x num_act
-    diff_norm = diff_norm * beta * -1
+    diff_norm = diff_norm * beta.to(diff_norm.device) * -1
     weights = F.softmax(diff_norm, dim=2)  # batch x N x num_act
     return weights
 
@@ -62,7 +61,13 @@ class Net(nn.Module):
         self.params = params
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
-        self.beta = self.params['temperature']
+        self.beta = torch.Tensor([self.params['temperature']])
+
+        if (self.params['random_betas']):
+            # initialize random betas to be between 0 and 0.25 for each centroid. 
+            # the random betas are fixed for each centroid index throughout training.
+            self.beta = torch.rand(1, self.N)*0.25
+            #self.beta.to(self.device)
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
@@ -104,7 +109,8 @@ class Net(nn.Module):
                 noisy_linear(self.params['layer_size'], self.N),
             )
         else:
-            self.featureExtraction_module = nn.Sequential(
+    
+            self.advantage_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -112,9 +118,7 @@ class Net(nn.Module):
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
                 noisy_linear(self.params['layer_size'], self.params['layer_size']),
-            )
-
-            self.advantage_module = nn.Sequential(
+                nn.ReLU(),
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -122,6 +126,14 @@ class Net(nn.Module):
             )
 
             self.baseValue_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
+                nn.ReLU(),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
                 nn.Linear(self.params['layer_size'], self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
@@ -201,9 +213,7 @@ class Net(nn.Module):
             {
                 'params': self.baseValue_module.parameters(), 'lr': self.params['learning_rate']
             },
-            {
-                'params': self.featureExtraction_module.parameters(), 'lr': self.params['learning_rate']
-            }]
+            ]
         try:
             if self.params['optimizer'] == 'RMSprop':
                 self.optimizer = optim.RMSprop(self.params_dic)
@@ -223,8 +233,7 @@ class Net(nn.Module):
         '''
         assert self.params['dueling']
 
-        features = self.featureExtraction_module(s)
-        centroid_advantages = self.advantage_module(features)
+        centroid_advantages = self.advantage_module(s)
         return centroid_advantages
 
     def get_state_value(self, s):
@@ -233,8 +242,7 @@ class Net(nn.Module):
         '''
         assert self.params['dueling']
 
-        features = self.featureExtraction_module(s)
-        value = self.baseValue_module(features)
+        value = self.baseValue_module(s)
         return value
     ### dueling specific methods above ^
 
@@ -320,7 +328,6 @@ class Net(nn.Module):
         else:
             train_module_noise(self.baseValue_module)
             train_module_noise(self.advantage_module)
-            train_module_noise(self.featureExtraction_module)
             train_module_noise(self.location_module)
 
     def eval_noisy(self):
@@ -339,7 +346,6 @@ class Net(nn.Module):
         else:
             eval_module_noise(self.baseValue_module)
             eval_module_noise(self.advantage_module)
-            eval_module_noise(self.featureExtraction_module)
             eval_module_noise(self.location_module)
 
     def reset_noise(self):
@@ -355,7 +361,6 @@ class Net(nn.Module):
         if not self.params['dueling']:
             reset_module_noise(self.value_module)
         else:
-            reset_module_noise(self.featureExtraction_module)
             reset_module_noise(self.advantage_module)
             reset_module_noise(self.baseValue_module)
 

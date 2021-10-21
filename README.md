@@ -49,6 +49,9 @@ The starting value for beta in PER (controls the importance sampling compensatio
 `--should_schedule_beta <True / False>`
 Whether or not to anneal the value of beta to go from `per_beta_start` to 1.0 over the course of training. Defaults to true. 
 
+`--random_betas <True / False>`
+Whether or not to use a randomly initialized beta for each centroid index.
+
 ### Example Run Commands
 `python experiments/experiment.py --hyper_parameter_name 10 --seed 0 --experiment_name "./results/<TASK_NAME>" --run_title "<VARIATION>" --double True --per True --nstep 4 --dueling True --noisy_layers True`
 

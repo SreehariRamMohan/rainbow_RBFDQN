@@ -162,6 +162,12 @@ if __name__ == "__main__":
                         required=False,  ## with the value from the commandline
                         default="unset")
 
+    # use randomly initialized betas for all centroids (fixed) throughout training. 
+    parser.add_argument("--random_betas", 
+                        type=utils.boolify, 
+                        required=False,
+                        default=False)
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -191,6 +197,7 @@ if __name__ == "__main__":
     params['per_beta_start'] = args.per_beta_start
     params['should_schedule_beta'] = args.should_schedule_beta
     params['loss_type'] = args.loss_type
+    params['random_betas'] = args.random_betas
 
     # change hyper parameters from command line
     if args.learning_rate:
