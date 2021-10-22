@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set()
 from pathlib import Path
+import matplotlib.ticker as ticker
+from matplotlib.pyplot import figure
 
 '''
 Onager Prelaunch command
@@ -14,6 +16,14 @@ onager prelaunch +jobname distributional_ant_sweep_location_lr +command "python 
 
 from common.plotting_utils import get_scores, generate_plot, get_all_run_titles, get_all_runs_and_subruns
 
+
+def export_legend(legend, filename="legend.png", expand=[-5,-5,5,5]):
+    fig  = legend.figure
+    fig.canvas.draw()
+    bbox  = legend.get_window_extent()
+    bbox = bbox.from_extents(*(bbox.extents + np.array(expand)))
+    bbox = bbox.transformed(fig.dpi_scale_trans.inverted())
+    fig.savefig(filename, dpi="figure", bbox_inches=bbox)
 
 def make_graphs(experiment_name,
                 subdir,
@@ -65,7 +75,7 @@ def make_graphs(experiment_name,
         This short snippet of code can prune out the terrible performing runs and just give you the top N_BEST performing ones. 
         '''
         # the number of "top runs" you want to plot
-        N_BEST = 10
+        N_BEST = 5
         
         # the length of the trajectory (from the end) you want to use as a heuristic for ranking all the runs 
         RUN_HEURISTIC = 20
@@ -96,6 +106,8 @@ def make_graphs(experiment_name,
         rank_array = rank_array[:N_BEST]
         perf_heuristics, good_run_titles, score_arrays = (list(l) for l in zip(*rank_array))
 
+    plt.figure(figsize=(4,3))
+
     [
         generate_plot(score_array, run_title, smoothen=smoothen)
         for score_array, run_title in zip(score_arrays, good_run_titles)
@@ -103,9 +115,16 @@ def make_graphs(experiment_name,
 
     plt.ylabel(subdir.replace("_", " "))
     plt.xlabel("Episode")
-    plt.legend()
+    
+    #legend = plt.legend()
+   
+    #legend = plt.legend(loc=(1.04,0))
+    #export_legend(legend)
 
-    plt.show()
+    #plt.show()
+    plt.title("Walker2d")
+
+    plt.savefig("./walker.pdf", format="pdf", bbox_inches="tight")
 
 
 def main():
@@ -114,7 +133,7 @@ def main():
     """
     ## Defaults
     subdir = "evaluation_rewards"
-    smoothen = False
+    smoothen = True
     min_length = -1
     only_longest = False
     cumulative = False
@@ -133,7 +152,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "./results/HalfCheetah"
+    experiment_name = "/home/sreehari/Downloads/ICLR/results/Walker"
     #experiment_name = "/home/sreehari/Downloads/Onager Sweeps Rainbow RBFDQN/Ant2/"
 
     run_titles = get_all_run_titles(experiment_name)
