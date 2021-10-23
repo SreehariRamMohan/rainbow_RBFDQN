@@ -117,7 +117,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "./results/BipedalWalker"
+    experiment_name = "~/Downloads/ICLR/results/Ant"
     run_titles = get_all_run_titles(experiment_name)
     make_graphs(experiment_name,
                 subdir,

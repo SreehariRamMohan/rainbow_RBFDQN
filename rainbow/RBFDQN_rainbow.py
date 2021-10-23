@@ -12,6 +12,7 @@ import pickle
 import numpy as np
 from common import utils_for_q_learning, buffer_class
 from common.noisy_layer import NoisyLinear
+import math
 
 def rbf_function_on_action(centroid_locations, action, beta):
     '''
@@ -66,9 +67,9 @@ class Net(nn.Module):
         if (self.params['random_betas']):
             # initialize random betas to be between 0 and 0.25 for each centroid. 
             # the random betas are fixed for each centroid index throughout training.
-            self.beta = torch.rand(1, self.N)*0.25
+            self.beta = torch.normal(mean=self.params['temperature'], std=math.sqrt(self.N)/self.N, size=(1, self.N))
             #self.beta.to(self.device)
-
+           
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,

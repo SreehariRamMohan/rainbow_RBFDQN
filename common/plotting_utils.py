@@ -71,9 +71,39 @@ def generate_plot(score_array, label, smoothen=False):
     if smoothen:
         score_array = smoothen_data(score_array, n=10)
     median, mean, top, bottom = get_plot_params(score_array)
-    plt.plot(mean, linewidth=2, label=label, alpha=0.9)
-    plt.fill_between(range(len(top)), top, bottom, alpha=0.2)
 
+    color_legend_map = {
+        "vanilla": "dimgrey",
+        "noisy": "firebrick",
+        "per": "dodgerblue",
+        "double": "blueviolet",
+        "distributional": "darkorange",
+        "dueling": "limegreen",
+        "multi-step": "khaki"
+    }
+
+    x1 = list(range(len(mean)))
+
+    x1 = [((i)*10*(100/91)) for i in x1]
+
+    #x1 = [((i)*10*(200/192)) for i in x1]
+
+    #x1 = [((i)*10) for i in x1]
+
+
+    plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, color=color_legend_map[label])
+    
+    x2 = list(range(len(top)))
+    
+    x2 = [((i)*10*(100/91)) for i in x2]
+    
+    #x2 = [((i)*10*(200/192)) for i in x2]
+
+    #x2 = [((i)*10) for i in x2]
+     
+    plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
+
+    plt.xlim(0, 1000)
 
 def get_all_run_titles(experiment_name):
     parent = Path(experiment_name)
