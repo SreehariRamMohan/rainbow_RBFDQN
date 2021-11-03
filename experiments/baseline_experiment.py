@@ -1,26 +1,22 @@
 import gym
-import sys
-import time
-import random
-import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy
-import pickle
 import numpy as np
-from common import utils_for_q_learning, buffer_class
-from common.noisy_layer import NoisyLinear
-import math
 
 from stable_baselines3 import DDPG
+from stable_baselines3 import TD3
+from stable_baselines3 import SAC
+from stable_baselines3 import PPO
+
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
 
 from common import utils_for_q_learning
 import argparse
 
 parser = argparse.ArgumentParser()
+
+parser.add_argument("--agent",
+                    required=True,
+                    type=str,
+                    default="DDPG")  # OpenAI gym environment name
 
 parser.add_argument("--hyper_parameter_name",
                     required=True,
@@ -39,7 +35,6 @@ parser.add_argument("--run_title",
 args, unknown = parser.parse_known_args()
     
 params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, "rbf")
-breakpoint()
 env = gym.make(params['env_name'])        
 
 # number of steps on average per task
@@ -58,10 +53,17 @@ env_name_to_steps = {
 n_actions = env.action_space.shape[-1]
 action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n_actions))
 
-model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1)
+assert args.agent in ["DDPG", "PPO", "SAC", "TD3"]
+model = None
+if args.agent == "DDPG":
+    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1)
+elif args.agent == "PPO":
+    model = PPO("MlpPolicy", env, verbose=1)
+elif args.agent == "SAC":
+    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1)
+elif args.agent == "TD3":
+    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1)
 
-model.set_random_seed(args.seed);
+model.set_random_seed(args.seed)
 
 model.learn(total_timesteps=params['max_episode']*env_name_to_steps[params['env_name']], eval_freq=10*env_name_to_steps[params['env_name']], n_eval_episodes=10)
-
-#model.save(args.run_title)
