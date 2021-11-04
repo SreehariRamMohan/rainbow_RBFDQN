@@ -1,5 +1,6 @@
 import gym
 import numpy as np
+from pathlib import Path
 
 from stable_baselines3 import DDPG
 from stable_baselines3 import TD3
@@ -23,8 +24,8 @@ parser.add_argument("--hyper_parameter_name",
                     help="0, 10, 20, etc. Corresponds to .hyper file",
                     default="0")  # OpenAI gym environment name
 
-parser.add_argument("--seed", default=0, help="seed",
-                    type=int)  # Sets Gym, PyTorch and Numpy seeds
+parser.add_argument("--seed", help="seed",
+                    type=int, required=True)  # Sets Gym, PyTorch and Numpy seeds
 
 
 parser.add_argument("--run_title",
@@ -56,14 +57,22 @@ action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n
 assert args.agent in ["DDPG", "PPO", "SAC", "TD3"]
 model = None
 if args.agent == "DDPG":
-    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1)
+    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "PPO":
-    model = PPO("MlpPolicy", env, verbose=1)
+    model = PPO("MlpPolicy", env, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "SAC":
-    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1)
+    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "TD3":
-    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1)
+    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 
 model.set_random_seed(args.seed)
 
-model.learn(total_timesteps=params['max_episode']*env_name_to_steps[params['env_name']], eval_freq=10*env_name_to_steps[params['env_name']], n_eval_episodes=10)
+# make eval log dir
+
+directory_to_make = "./baseline_results/" + args.agent + "/" + args.run_title + "_" + args.hyper_parameter_name + "_seed_" + str(args.seed)
+
+Path(directory_to_make).mkdir(parents=True, exist_ok=True)
+
+model.learn(total_timesteps=params['max_episode']*env_name_to_steps[params['env_name']], 
+            eval_freq=10*env_name_to_steps[params['env_name']], 
+            n_eval_episodes=10, tb_log_name=directory_to_make)
