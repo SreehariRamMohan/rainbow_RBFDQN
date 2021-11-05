@@ -8,6 +8,7 @@ from stable_baselines3 import SAC
 from stable_baselines3 import PPO
 
 from stable_baselines3.common.noise import NormalActionNoise, OrnsteinUhlenbeckActionNoise
+from stable_baselines3.common.logger import configure
 
 from common import utils_for_q_learning
 import argparse
@@ -56,23 +57,25 @@ action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.1 * np.ones(n
 
 assert args.agent in ["DDPG", "PPO", "SAC", "TD3"]
 model = None
-if args.agent == "DDPG":
-    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
-elif args.agent == "PPO":
-    model = PPO("MlpPolicy", env, verbose=1, train_freq=(1000, "episode"))
-elif args.agent == "SAC":
-    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
-elif args.agent == "TD3":
-    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
-
-model.set_random_seed(args.seed)
 
 # make eval log dir
 
 directory_to_make = "./baseline_results/" + args.agent + "/" + args.run_title + "_" + args.hyper_parameter_name + "_seed_" + str(args.seed)
 
 Path(directory_to_make).mkdir(parents=True, exist_ok=True)
+new_logger = configure(directory_to_make, ["stdout", "csv", "log", "tensorboard", "json"])
+
+if args.agent == "DDPG":
+    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+elif args.agent == "PPO":
+    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=new_logger)
+elif args.agent == "SAC":
+    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+elif args.agent == "TD3":
+    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+
+model.set_random_seed(args.seed)
 
 model.learn(total_timesteps=params['max_episode']*env_name_to_steps[params['env_name']], 
             eval_freq=10*env_name_to_steps[params['env_name']], 
-            n_eval_episodes=10, tb_log_name=directory_to_make)
+            n_eval_episodes=10, eval_log_path=directory_to_make)
