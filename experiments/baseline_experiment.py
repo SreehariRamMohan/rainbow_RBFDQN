@@ -68,7 +68,7 @@ logger = configure(directory_to_make, ["stdout", "csv", "log", "tensorboard", "j
 if args.agent == "DDPG":
     model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "PPO":
-    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=directory_to_make)
+    model = PPO("MlpPolicy", env, verbose=1)
 elif args.agent == "SAC":
     model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "TD3":
