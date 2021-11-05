@@ -63,16 +63,16 @@ model = None
 directory_to_make = "./baseline_results/" + args.agent + "/" + args.run_title + "_" + args.hyper_parameter_name + "_seed_" + str(args.seed)
 
 Path(directory_to_make).mkdir(parents=True, exist_ok=True)
-new_logger = configure(directory_to_make, ["stdout", "csv", "log", "tensorboard", "json"])
+logger = configure(directory_to_make, ["stdout", "csv", "log", "tensorboard", "json"])
 
 if args.agent == "DDPG":
-    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "PPO":
-    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=new_logger)
+    model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=directory_to_make)
 elif args.agent == "SAC":
-    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 elif args.agent == "TD3":
-    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"), tensorboard_log=new_logger)
+    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
 
 model.set_random_seed(args.seed)
 
