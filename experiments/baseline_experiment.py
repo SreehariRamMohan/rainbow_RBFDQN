@@ -66,16 +66,16 @@ Path(directory_to_make).mkdir(parents=True, exist_ok=True)
 logger = configure(directory_to_make, ["stdout", "csv", "log", "tensorboard", "json"])
 
 if args.agent == "DDPG":
-    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
+    model = DDPG("MlpPolicy", env, action_noise=action_noise, verbose=1)
 elif args.agent == "PPO":
     model = PPO("MlpPolicy", env, verbose=1)
 elif args.agent == "SAC":
-    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
+    model = SAC("MlpPolicy", env, action_noise=action_noise, verbose=1)
 elif args.agent == "TD3":
-    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1, train_freq=(1000, "episode"))
+    model = TD3("MlpPolicy", env, action_noise=action_noise, verbose=1)
 
 model.set_random_seed(args.seed)
 
 model.learn(total_timesteps=params['max_episode']*env_name_to_steps[params['env_name']], 
             eval_freq=10*env_name_to_steps[params['env_name']], 
-            n_eval_episodes=10, eval_log_path=directory_to_make)
+            n_eval_episodes=10) #eval_log_path=directory_to_make)
