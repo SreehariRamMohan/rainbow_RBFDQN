@@ -13,6 +13,15 @@ from stable_baselines3.common.logger import configure
 from common import utils_for_q_learning
 import argparse
 
+'''
+stable_baselines3 version 0.11.1 does not require you to call set_logger() for the output
+to be properly written. In fact you cannot call set_logger because the models do not even have
+a set_logger method. 
+
+stable_baselines3 version 1.1.0 requires a call to set_logger(logger) for output to properly be written
+You would do this after line 86; model.set_logger(logger)
+'''
+
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--agent",
@@ -39,7 +48,7 @@ args, unknown = parser.parse_known_args()
 params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, "rbf")
 env = gym.make(params['env_name'])        
 
-# number of steps on average per task
+# number of steps on average per episode
 env_name_to_steps = {
     "Pendulum-v0": 200, 
     "LunarLanderContinuous-v2":200,

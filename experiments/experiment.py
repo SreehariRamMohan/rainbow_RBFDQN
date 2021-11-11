@@ -323,63 +323,92 @@ if __name__ == "__main__":
     loss_li = []
     all_times_per_steps = []
     all_times_per_updates = []
-    for episode in range(params['max_episode']):
-        print("episode {}".format(episode))
+
+    print("using step based training.")
+
+    # number of steps on average per episode
+    env_name_to_steps = {
+        "Pendulum-v0": 200, 
+        "LunarLanderContinuous-v2":200,
+        "BipedalWalker-v3": 1600,
+        "Hopper-v3": 1000,
+        "HalfCheetah-v3": 1000,
+        "Ant-v3": 1000,
+        "Humanoid-v2":1000,
+        "Walker2d-v2":1000
+    }
+
+    steps_per_typical_episode = env_name_to_steps[params['env_name']]
+
+    steps = 0
+
+    rewards_per_typical_episode = 0
+
+    while (steps <  params['max_step']):
+
+        if (steps%100000 == 0):
+            print("step {}".format(steps))
 
         s, done, t = env.reset(), False, 0
-        episodic_rewards = 0
-
+        
         while not done:
-            a = Q_object.execute_policy(s, episode + 1, 'train')
+            a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train')
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
-            episodic_rewards += r
+            rewards_per_typical_episode += r
             done_p = False if t == env._max_episode_steps else done
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
 
+            if steps%steps_per_typical_episode == 0:
+                # now update the Q network
+                loss = []
+                for count in range(params['updates_per_episode']):
+                    temp, update_params = Q_object.update(Q_object_target, count)
+                    loss.append(temp)
+                loss_li.append(numpy.mean(loss))
+                meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
+
+                meta_logger.append_datapoint("episodic_rewards", rewards_per_typical_episode, write=True)
+                rewards_per_typical_episode = 0
+
+                meta_logger.append_datapoint("average_q", update_params['average_q'], write=True)
+                meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
+
+            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_episode'] - 1):
+                temp = []
+                for _ in range(10):
+                    s, G, done, t = env.reset(), 0, False, 0
+                    while done == False:
+                        a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test')
+                        sp, r, done, _ = env.step(numpy.array(a))
+                        s, G, t = sp, G + r, t + 1
+                    temp.append(G)
+
+                print(
+                    "after {} steps, learned policy collects {} average returns".format(
+                        steps, numpy.mean(temp)))
+
+                G_li.append(numpy.mean(temp))
+                utils_for_q_learning.save(G_li, loss_li, params, "rbf")
+                meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
+
+            if (params["log"] and ((steps % 50*steps_per_typical_episode == 0) or steps == (params['max_episode'] + 1))):
+                path = os.path.join(params["full_experiment_file_path"], "logs")
+                if not os.path.exists(path):
+                    try:
+                        os.makedirs(path, exist_ok=True)
+                    except OSError:
+                        print("Creation of the directory %s failed" % path)
+                    else:
+                        print("Successfully created the directory %s " % path)
+                torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(steps) + "_seed_" + str(args.seed)))
+                torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(steps) + "_seed_" + str(args.seed)))
+
+            steps += 1
+
+
+        # notify n-step that the episode has ended. 
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()
 
-        meta_logger.append_datapoint("episodic_rewards", episodic_rewards, write=True)
-        # now update the Q network
-        loss = []
-
-        for count in range(params['updates_per_episode']):
-            temp, update_params = Q_object.update(Q_object_target, count)
-            loss.append(temp)
-
-        loss_li.append(numpy.mean(loss))
-        meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
-        meta_logger.append_datapoint("average_q", update_params['average_q'], write=True)
-        meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
-
-        if (episode % 10 == 0) or (episode == params['max_episode'] - 1):
-            temp = []
-            for _ in range(10):
-                s, G, done, t = env.reset(), 0, False, 0
-                while done == False:
-                    a = Q_object.execute_policy(s, episode + 1, 'test')
-                    sp, r, done, _ = env.step(numpy.array(a))
-                    s, G, t = sp, G + r, t + 1
-                temp.append(G)
-
-            print(
-                "after {} episodes, learned policy collects {} average returns".format(
-                    episode, numpy.mean(temp)))
-
-            G_li.append(numpy.mean(temp))
-            utils_for_q_learning.save(G_li, loss_li, params, "rbf")
-            meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
-
-        if (params["log"] and ((episode % 50 == 0) or episode == (params['max_episode'] + 1))):
-            path = os.path.join(params["full_experiment_file_path"], "logs")
-            if not os.path.exists(path):
-                try:
-                    os.makedirs(path, exist_ok=True)
-                except OSError:
-                    print("Creation of the directory %s failed" % path)
-                else:
-                    print("Successfully created the directory %s " % path)
-            torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(episode) + "_seed_" + str(args.seed)))
-            torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(episode) + "_seed_" + str(args.seed)))
