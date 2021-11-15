@@ -84,9 +84,9 @@ def generate_plot(score_array, label, smoothen=False):
 
     x1 = list(range(len(mean)))
 
-    x1 = [((i)*10*(100/91)) for i in x1]
+    #x1 = [((i)*10*(100/91)) for i in x1]
 
-    #x1 = [((i)*10*(200/192)) for i in x1]
+    x1 = [((i)*(10)*(200/193)) for i in x1]
 
     #x1 = [((i)*10) for i in x1]
 
@@ -95,15 +95,15 @@ def generate_plot(score_array, label, smoothen=False):
     
     x2 = list(range(len(top)))
     
-    x2 = [((i)*10*(100/91)) for i in x2]
+    #x2 = [((i)*10*(100/91)) for i in x2]
     
-    #x2 = [((i)*10*(200/192)) for i in x2]
+    x2 = [((i)*(10)*(200/193)) for i in x2]
 
     #x2 = [((i)*10) for i in x2]
      
     plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
 
-    plt.xlim(0, 1000)
+    plt.xlim(0, 2000)
 
 def get_all_run_titles(experiment_name):
     parent = Path(experiment_name)
