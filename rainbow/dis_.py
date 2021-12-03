@@ -80,7 +80,15 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
-        self.value_range = torch.linspace(self.v_min, self.v_max, self.N).to(self.device)
+        self.value_module = nn.Sequential(
+            nn.Linear(self.state_size, self.params['layer_size']),
+            nn.ReLU(),
+            nn.Linear(self.params['layer_size'], self.params['layer_size']),
+            nn.ReLU(),
+            nn.Linear(self.params['layer_size'], self.params['layer_size']),
+            nn.ReLU(),
+            nn.Linear(self.params['layer_size'], self.N),
+        )
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
@@ -129,8 +137,7 @@ class Net(nn.Module):
         """
         given a batch of s, get all centroid values, [batch x N]
         """
-        batch_size = s.shape[0]
-        centroid_values = self.value_range.repeat(batch_size, 1)
+        centroid_values = self.value_module(s)
         return centroid_values  # [batch x N]
 
     def get_centroid_locations(self, s):
@@ -152,17 +159,18 @@ class Net(nn.Module):
         best, indices = allq.max(dim=1)
         a = torch.index_select(all_centroids, 1, indices)  # This way of indexing works for both cases
         a = torch.diagonal(a, dim1=0, dim2=1).T
-        dis = torch.index_select(weights, 1, indices)
-        dis = torch.diagonal(dis, dim1=0, dim2=1).T
-        return best, a.squeeze(), dis
+        probs = torch.index_select(weights, 1, indices)
+        probs = torch.diagonal(probs, dim1=0, dim2=1).T
+        return best, a.squeeze(), probs, values
 
     def forward(self, s, a):
         """
         given a batch of s,a , compute Q(s,a) [batch x 1]
         """
         centroid_locations = self.get_centroid_locations(s)
+        centroid_values = self.get_centroid_values(s)
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)  # This should give the distribution directly
-        return centroid_weights
+        return centroid_weights, centroid_values
 
     def e_greedy_policy(self, s, episode, train_or_test):
         """
@@ -178,7 +186,7 @@ class Net(nn.Module):
             s_matrix = numpy.array(s).reshape(1, self.state_size)
             with torch.no_grad():
                 s = torch.from_numpy(s_matrix).float().to(self.device)
-                _, a, _ = self.get_best_qvalue_and_action(s)
+                _, a, _ , _ = self.get_best_qvalue_and_action(s)
                 a = a.cpu().numpy()
             self.train()
             return [a]
@@ -239,24 +247,19 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
 
         with torch.no_grad():
-            best, action, dis = target_Q.get_best_qvalue_and_action(sp_matrix)
-            next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
-            # compute the distribution for actions
-            y = torch.zeros((batch_size, self.N)).to(self.device)
-            next_v_range = torch.clip(next_value_range, self.v_min, self.v_max).to(self.device)
-            next_v_pos = (next_v_range - self.v_min) / ((self.v_max - self.v_min) / (self.N - 1))
-            lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
-            ub = torch.ceil(next_v_pos).to(torch.int64).to(self.device)
-            # handling marginal situation for lb==ub
-            lb[(ub > 0) * (lb == ub)] -= 1
-            ub[(lb < (self.N - 1)) * (lb == ub)] += 1
-            offset = torch.linspace(0, ((batch_size - 1) * self.N), batch_size).unsqueeze(1).expand(batch_size, self.N).to(torch.int64).to(self.device)
-            # breakpoint()
-            y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
-            y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
+            best, action, next_prob, next_support = target_Q.get_best_qvalue_and_action(sp_matrix)
+            next_support = r_matrix + self.params['gamma'] * (1 - done_matrix) * next_support # [batch, N]
+
         # [s a r s_, a_,]
-        y_hat = self.forward(s_matrix, a_matrix)
-        # loss = self.criterion(y_hat, y.type(torch.float32))
+        prob, support = self.forward(s_matrix, a_matrix)
+
+        X = torch.arange(0, prob.shape[0]).reshape(prob.shape[0], -1)
+        next_support, indices = torch.sort(next_support, dim=1)
+        next_prob = next_prob[X, indices]
+        support, indices = torch.sort(support, dim=1)
+        prob = prob[X, indices]
+        # Support, Prob, Next Support, Next Prob
+
         loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
         self.zero_grad()
