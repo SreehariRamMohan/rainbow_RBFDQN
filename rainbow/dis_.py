@@ -258,7 +258,33 @@ class Net(nn.Module):
         next_prob = next_prob[X, indices]
         support, indices = torch.sort(support, dim=1)
         prob = prob[X, indices]
-        # Support, Prob, Next Support, Next Prob
+        # Support, Prob, Next Support, Next Prob [256, 100]
+        vmin = torch.where(support[:, 0] < next_support[:, 0], support[:, 0], next_support[:, 0])
+        vmax = torch.where(support[:, -1] > next_support[:, -1], support[:, -1], next_support[:, -1])
+        vmin = vmin.reshape(-1, 1)
+        vmax = vmax.reshape(-1, 1)
+
+        y = torch.zeros((batch_size, self.N)).to(self.device)
+        next_v_pos = (next_support - vmin) / ((vmax - vmin) / (self.N - 1))
+        lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
+        ub = torch.ceil(next_v_pos).to(torch.int64).to(self.device)
+        # handling marginal situation for lb==ub
+        lb[(ub > 0) * (lb == ub)] -= 1
+        ub[(lb < (self.N - 1)) * (lb == ub)] += 1
+        offset = torch.linspace(0, ((batch_size - 1) * self.N), batch_size).unsqueeze(1).expand(batch_size, self.N).to(torch.int64).to(self.device)
+        y.view(-1).index_add_(0, (lb + offset).view(-1), (next_prob * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
+        y.view(-1).index_add_(0, (ub + offset).view(-1), (next_prob * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
+
+        y_hat = torch.zeros((batch_size, self.N)).to(self.device)
+        v_pos = (support - vmin) / ((vmax - vmin) / (self.N - 1))
+        lb = torch.floor(v_pos).to(torch.int64).to(self.device)
+        ub = torch.ceil(v_pos).to(torch.int64).to(self.device)
+        # handling marginal situation for lb==ub
+        lb[(ub > 0) * (lb == ub)] -= 1
+        ub[(lb < (self.N - 1)) * (lb == ub)] += 1
+        offset = torch.linspace(0, ((batch_size - 1) * self.N), batch_size).unsqueeze(1).expand(batch_size, self.N).to(torch.int64).to(self.device)
+        y_hat.view(-1).index_add_(0, (lb + offset).view(-1), (prob * (ub.float() - v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
+        y_hat.view(-1).index_add_(0, (ub + offset).view(-1), (prob * (v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
         loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
