@@ -10,9 +10,9 @@ import random
 
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append("..")
 
-import utils_for_q_learning, buffer_class
+from common import utils_for_q_learning, buffer_class
 
 import torch
 import torch.nn as nn
@@ -70,16 +70,17 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -10, 10
+        self.v_min, self.v_max = -1000, -100
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'])
+            seed_number=self.params['seed_number'],
+            params=params)
 
         self.state_size, self.action_size = state_size, action_size
 
-        self.value_range = torch.linspace(self.v_min, self.v_max, self.n_atoms).to(self.device)
+        self.value_range = torch.linspace(self.v_min, self.v_max, self.N).to(self.device)
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
@@ -130,7 +131,6 @@ class Net(nn.Module):
         """
         batch_size = s.shape[0]
         centroid_values = self.value_range.repeat(batch_size, 1)
-        breakpoint()
         return centroid_values  # [batch x N]
 
     def get_centroid_locations(self, s):
@@ -152,7 +152,9 @@ class Net(nn.Module):
         best, indices = allq.max(dim=1)
         a = torch.index_select(all_centroids, 1, indices)  # This way of indexing works for both cases
         a = torch.diagonal(a, dim1=0, dim2=1).T
-        return best, a.squeeze(), weights
+        dis = torch.index_select(weights, 1, indices)
+        dis = torch.diagonal(dis, dim1=0, dim2=1).T
+        return best, a.squeeze(), dis
 
     def forward(self, s, a):
         """
@@ -160,7 +162,6 @@ class Net(nn.Module):
         """
         centroid_locations = self.get_centroid_locations(s)
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)  # This should give the distribution directly
-        breakpoint()
         return centroid_weights
 
     def e_greedy_policy(self, s, episode, train_or_test):
@@ -180,7 +181,7 @@ class Net(nn.Module):
                 _, a, _ = self.get_best_qvalue_and_action(s)
                 a = a.cpu().numpy()
             self.train()
-            return a
+            return [a]
 
     def e_greedy_gaussian_policy(self, s, episode, train_or_test):
         """
@@ -223,7 +224,10 @@ class Net(nn.Module):
 
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
-            return 0
+            update_param = {}
+            update_param['average_q'] = 0
+            update_param['average_q_star'] = 0
+            return 0, update_param
         batch_size = self.params['batch_size']
         s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
         r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
@@ -235,18 +239,19 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
 
         with torch.no_grad():
-            best, action, dis = target_Q.get_best_qvalue_and_action(sp_matrix).detach()
+            best, action, dis = target_Q.get_best_qvalue_and_action(sp_matrix)
             next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
             # compute the distribution for actions
-            y = torch.zeros((batch_size, self.n_atoms)).to(self.device)
+            y = torch.zeros((batch_size, self.N)).to(self.device)
             next_v_range = torch.clip(next_value_range, self.v_min, self.v_max).to(self.device)
-            next_v_pos = (next_v_range - self.v_min) / ((self.v_max - self.v_min) / (self.n_atoms - 1))
+            next_v_pos = (next_v_range - self.v_min) / ((self.v_max - self.v_min) / (self.N - 1))
             lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
             ub = torch.ceil(next_v_pos).to(torch.int64).to(self.device)
             # handling marginal situation for lb==ub
             lb[(ub > 0) * (lb == ub)] -= 1
-            ub[(lb < (self.n_atoms - 1)) * (lb == ub)] += 1
-            offset = torch.linspace(0, ((batch_size - 1) * self.n_atoms), batch_size).unsqueeze(1).expand(batch_size, self.n_atoms).to(torch.int64).to(self.device)
+            ub[(lb < (self.N - 1)) * (lb == ub)] += 1
+            offset = torch.linspace(0, ((batch_size - 1) * self.N), batch_size).unsqueeze(1).expand(batch_size, self.N).to(torch.int64).to(self.device)
+            # breakpoint()
             y.view(-1).index_add_(0, (lb + offset).view(-1), (dis * (ub.float() - next_v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
             y.view(-1).index_add_(0, (ub + offset).view(-1), (dis * (next_v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
         # [s a r s_, a_,]
@@ -263,4 +268,7 @@ class Net(nn.Module):
             online=self,
             alpha=self.params['target_network_learning_rate'],
             copy=False)
-        return loss.cpu().data.numpy()
+        update_param = {}
+        update_param['average_q'] = 0
+        update_param['average_q_star'] = 0
+        return loss.cpu().data.numpy(), update_param
