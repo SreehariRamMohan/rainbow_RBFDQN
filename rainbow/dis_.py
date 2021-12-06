@@ -120,7 +120,11 @@ class Net(nn.Module):
 
         self.criterion = nn.CrossEntropyLoss()
 
-        self.params_dic = [{'params': self.location_module.parameters(), 'lr': self.params['learning_rate_location_side']}]
+        self.params_dic = [{'params': self.location_module.parameters(), 'lr': self.params['learning_rate_location_side']},
+                           {
+                               'params': self.value_module.parameters(),
+                               'lr': self.params['learning_rate']
+                           }]
         try:
             if self.params['optimizer'] == 'RMSprop':
                 self.optimizer = optim.RMSprop(self.params_dic)
@@ -252,7 +256,7 @@ class Net(nn.Module):
 
         # [s a r s_, a_,]
         prob, support = self.forward(s_matrix, a_matrix)
-
+        # breakpoint()
         X = torch.arange(0, prob.shape[0]).reshape(prob.shape[0], -1)
         next_support, indices = torch.sort(next_support, dim=1)
         next_prob = next_prob[X, indices]
@@ -263,11 +267,11 @@ class Net(nn.Module):
         vmax = torch.where(support[:, -1] > next_support[:, -1], support[:, -1], next_support[:, -1])
         vmin = vmin.reshape(-1, 1)
         vmax = vmax.reshape(-1, 1)
-
         y = torch.zeros((batch_size, self.N)).to(self.device)
         next_v_pos = (next_support - vmin) / ((vmax - vmin) / (self.N - 1))
         lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
         ub = torch.ceil(next_v_pos).to(torch.int64).to(self.device)
+        ub = torch.where(ub > 99, 99, ub)
         # handling marginal situation for lb==ub
         lb[(ub > 0) * (lb == ub)] -= 1
         ub[(lb < (self.N - 1)) * (lb == ub)] += 1
@@ -279,6 +283,7 @@ class Net(nn.Module):
         v_pos = (support - vmin) / ((vmax - vmin) / (self.N - 1))
         lb = torch.floor(v_pos).to(torch.int64).to(self.device)
         ub = torch.ceil(v_pos).to(torch.int64).to(self.device)
+        ub = torch.where(ub > 99, 99, ub)
         # handling marginal situation for lb==ub
         lb[(ub > 0) * (lb == ub)] -= 1
         ub[(lb < (self.N - 1)) * (lb == ub)] += 1
