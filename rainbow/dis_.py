@@ -271,7 +271,10 @@ class Net(nn.Module):
         next_v_pos = (next_support - vmin) / ((vmax - vmin) / (self.N - 1))
         lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
         ub = torch.ceil(next_v_pos).to(torch.int64).to(self.device)
+        lb = torch.where(lb > 99, 99, lb)
         ub = torch.where(ub > 99, 99, ub)
+        lb = torch.where(lb < 0, 0, lb)
+        ub = torch.where(ub < 0, 0, ub)
         # handling marginal situation for lb==ub
         lb[(ub > 0) * (lb == ub)] -= 1
         ub[(lb < (self.N - 1)) * (lb == ub)] += 1
@@ -283,7 +286,10 @@ class Net(nn.Module):
         v_pos = (support - vmin) / ((vmax - vmin) / (self.N - 1))
         lb = torch.floor(v_pos).to(torch.int64).to(self.device)
         ub = torch.ceil(v_pos).to(torch.int64).to(self.device)
+        lb = torch.where(lb > 99, 99, lb)
         ub = torch.where(ub > 99, 99, ub)
+        lb = torch.where(lb < 0, 0, lb)
+        ub = torch.where(ub < 0, 0, ub)
         # handling marginal situation for lb==ub
         lb[(ub > 0) * (lb == ub)] -= 1
         ub[(lb < (self.N - 1)) * (lb == ub)] += 1
