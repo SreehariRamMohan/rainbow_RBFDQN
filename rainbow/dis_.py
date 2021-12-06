@@ -70,7 +70,6 @@ class Net(nn.Module):
         self.N = self.params['num_points']
         self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
-        self.v_min, self.v_max = -1000, -100
 
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
@@ -263,10 +262,11 @@ class Net(nn.Module):
         support, indices = torch.sort(support, dim=1)
         prob = prob[X, indices]
         # Support, Prob, Next Support, Next Prob [256, 100]
-        vmin = torch.where(support[:, 0] < next_support[:, 0], support[:, 0], next_support[:, 0])
-        vmax = torch.where(support[:, -1] > next_support[:, -1], support[:, -1], next_support[:, -1])
+        vmin = torch.where(support[:, 0] < next_support[:, 0], support[:, 0], next_support[:, 0]).detach()
+        vmax = torch.where(support[:, -1] > next_support[:, -1], support[:, -1], next_support[:, -1]).detach()
         vmin = vmin.reshape(-1, 1)
         vmax = vmax.reshape(-1, 1)
+
         y = torch.zeros((batch_size, self.N)).to(self.device)
         next_v_pos = (next_support - vmin) / ((vmax - vmin) / (self.N - 1))
         lb = torch.floor(next_v_pos).to(torch.int64).to(self.device)
@@ -296,9 +296,10 @@ class Net(nn.Module):
         offset = torch.linspace(0, ((batch_size - 1) * self.N), batch_size).unsqueeze(1).expand(batch_size, self.N).to(torch.int64).to(self.device)
         y_hat.view(-1).index_add_(0, (lb + offset).view(-1), (prob * (ub.float() - v_pos)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
         y_hat.view(-1).index_add_(0, (ub + offset).view(-1), (prob * (v_pos - lb.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
-
-        loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
+        # breakpoint()
+        loss = torch.sum((-y * torch.log(y_hat + 0.0001)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
+        # print(loss)
         self.zero_grad()
         loss.backward()
         self.optimizer.step()
