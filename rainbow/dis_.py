@@ -20,7 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy
 import pickle
-
+from geomloss import SamplesLoss
 
 def rbf_function_on_action(centroid_locations, action, beta):
     """
@@ -120,7 +120,8 @@ class Net(nn.Module):
         self.location_module[3].weight.data.uniform_(-.1, .1)
         self.location_module[3].bias.data.uniform_(-1., 1.)
 
-        self.criterion = nn.CrossEntropyLoss()
+        # self.criterion = nn.CrossEntropyLoss()
+        self.criterion = SamplesLoss(loss="sinkhorn", p=2, blur=.05)
 
         self.params_dic = [{'params': self.location_module.parameters(), 'lr': self.params['learning_rate_location_side']},
                            {
@@ -167,7 +168,7 @@ class Net(nn.Module):
         a = torch.diagonal(a, dim1=0, dim2=1).T
         probs = torch.index_select(weights, 1, indices)
         probs = torch.diagonal(probs, dim1=0, dim2=1).T
-        return best, a.squeeze(), probs, values
+        return best, a.squeeze(), probs, values, all_centroids
 
     def forward(self, s, a):
         """
@@ -176,7 +177,7 @@ class Net(nn.Module):
         centroid_locations = self.get_centroid_locations(s)
         centroid_values = self.get_centroid_values(s)
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)  # This should give the distribution directly
-        return centroid_weights, centroid_values
+        return centroid_weights, centroid_values, centroid_locations
 
     def e_greedy_policy(self, s, episode, train_or_test):
         """
@@ -192,7 +193,7 @@ class Net(nn.Module):
             s_matrix = numpy.array(s).reshape(1, self.state_size)
             with torch.no_grad():
                 s = torch.from_numpy(s_matrix).float().to(self.device)
-                _, a, _ , _ = self.get_best_qvalue_and_action(s)
+                _, a, _, _, _ = self.get_best_qvalue_and_action(s)
                 a = a.cpu().numpy()
             self.train()
             return [a]
@@ -253,28 +254,30 @@ class Net(nn.Module):
         sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
 
         with torch.no_grad():
-            best, action, next_prob, next_support = target_Q.get_best_qvalue_and_action(sp_matrix)
+            best, action, next_prob, next_support, next_centroids = target_Q.get_best_qvalue_and_action(sp_matrix)
             next_support = r_matrix + self.params['gamma'] * (1 - done_matrix) * next_support # [batch, N]
 
         # [s a r s_, a_,]
-        prob, support = self.forward(s_matrix, a_matrix)
+        prob, support, centroids = self.forward(s_matrix, a_matrix)
         # breakpoint()
-        X = torch.arange(0, prob.shape[0]).reshape(prob.shape[0], -1)
-        next_support, indices = torch.sort(next_support, dim=1)
-        next_prob = next_prob[X, indices]
-        support, indices = torch.sort(support, dim=1)
-        prob = prob[X, indices]
+        # X = torch.arange(0, prob.shape[0]).reshape(prob.shape[0], -1)
+        # next_support, indices = torch.sort(next_support, dim=1)
+        # next_prob = next_prob[X, indices]
+        # support, indices = torch.sort(support, dim=1)
+        # prob = prob[X, indices]
         # Support, Prob, Next Support, Next Prob [256, 100]
-        multiplier = torch.triu(torch.ones(self.N, self.N))
-        prob = torch.matmul(prob, multiplier)[:, :-1]  # CDF for prob now
-        next_prob = torch.matmul(next_prob, multiplier)[:, :-1]  # CDF for next prob now
-        support = support[:, 1:] - support[:, :-1]
-        next_support = next_support[:, 1:] - next_support[:, :-1]
+        # multiplier = torch.triu(torch.ones(self.N, self.N))
+        # prob = torch.matmul(prob, multiplier)[:, :-1]  # CDF for prob now
+        # next_prob = torch.matmul(next_prob, multiplier)[:, :-1]  # CDF for next prob now
+        # support = support[:, 1:] - support[:, :-1]
+        # next_support = next_support[:, 1:] - next_support[:, :-1]
+        #
+        # area_1 = (prob*support).sum(dim=1)
+        # area_2 = (next_prob*next_support).sum(dim=1)
 
-        area_1 = (prob*support).sum(dim=1)
-        area_2 = (next_prob*next_support).sum(dim=1)
-
-        loss = area_2 - area_1
+        # loss = self.criterion(support[0, :], prob[0, :], next_support[0, :], next_prob[0, :])
+        loss = self.criterion(prob, centroids, next_prob, next_centroids)
+        # breakpoint()
         # loss = torch.sum((-y * torch.log(y_hat + 0.0001)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
         # print(loss)
