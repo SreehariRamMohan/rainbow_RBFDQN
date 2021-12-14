@@ -10,9 +10,9 @@ import random
 
 import os
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+sys.path.append("..")
 
-import utils_for_q_learning, buffer_class
+from common import utils_for_q_learning, buffer_class
 
 import torch
 import torch.nn as nn
@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy
 import pickle
+from geomloss import SamplesLoss
 
 
 def rbf_function_on_action(centroid_locations, action, beta):
@@ -76,7 +77,8 @@ class Net(nn.Module):
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
-            seed_number=self.params['seed_number'])
+            seed_number=self.params['seed_number'],
+            params=params)
 
         self.state_size, self.action_size = state_size, action_size
 
@@ -93,7 +95,7 @@ class Net(nn.Module):
             nn.ReLU(),
             nn.Linear(self.params['layer_size'], self.params['layer_size']),
             nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.N * 2),
+            nn.Linear(self.params['layer_size'], self.N * self.n_atoms),
         )
 
         if self.params['num_layers_action_side'] == 1:
@@ -125,7 +127,7 @@ class Net(nn.Module):
         self.location_module[3].weight.data.uniform_(-.1, .1)
         self.location_module[3].bias.data.uniform_(-1., 1.)
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = SamplesLoss(loss="sinkhorn", p=2, blur=.05)
 
         self.params_dic = [
             {
@@ -218,7 +220,7 @@ class Net(nn.Module):
                 _, _, a, _ = self.get_best_qvalue_and_action(s)
                 a = a.cpu().numpy()
             self.train()
-            return a
+            return [a]
 
     def e_greedy_gaussian_policy(self, s, episode, train_or_test):
         """
@@ -261,7 +263,10 @@ class Net(nn.Module):
 
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
-            return 0
+            update_param = {}
+            update_param['average_q'] = 0
+            update_param['average_q_star'] = 0
+            return 0, update_param
         batch_size = self.params['batch_size']
         s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
         r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
@@ -274,7 +279,7 @@ class Net(nn.Module):
 
         # Q_star = Q_star.reshape((self.params['batch_size'], -1))
         with torch.no_grad():
-            best, dis, _,  _ = target_Q.get_best_qvalue_and_action(sp_matrix).detach()
+            best, dis, _,  _ = target_Q.get_best_qvalue_and_action(sp_matrix)
             next_value_range = r_matrix + self.params['gamma'] * (1 - done_matrix) * self.value_range
             # compute the distribution for actions
             y = torch.zeros((batch_size, self.n_atoms)).to(self.device)
@@ -291,7 +296,8 @@ class Net(nn.Module):
         # [s a r s_, a_,]
         y_hat = self.forward(s_matrix, a_matrix)
         # loss = self.criterion(y_hat, y.type(torch.float32))
-        loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
+        loss = self.criterion(y_hat, self.value_range.repeat((batch_size, 1)).unsqueeze(-1), y, self.value_range.repeat((batch_size, 1)).unsqueeze(-1))
+        # loss = torch.sum((-y * torch.log(y_hat + 1e-8)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
         self.zero_grad()
         loss.backward()
@@ -302,4 +308,7 @@ class Net(nn.Module):
             online=self,
             alpha=self.params['target_network_learning_rate'],
             copy=False)
-        return loss.cpu().data.numpy()
+        update_param = {}
+        update_param['average_q'] = 0
+        update_param['average_q_star'] = 0
+        return loss.cpu().data.numpy(), update_param
