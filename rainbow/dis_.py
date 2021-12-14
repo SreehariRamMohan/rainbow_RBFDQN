@@ -178,7 +178,7 @@ class Net(nn.Module):
         centroid_values = self.get_centroid_values(s)
         centroid_weights = rbf_function_on_action(centroid_locations, a, self.beta)  # This should give the distribution directly
         output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
-        output = output.sum(1, keepdim=True)  # [batch x 1]
+        # output = output.sum(1, keepdim=True)  # [batch x 1]
         return centroid_weights, output, centroid_locations
 
     def e_greedy_policy(self, s, episode, train_or_test):
@@ -257,7 +257,7 @@ class Net(nn.Module):
 
         with torch.no_grad():
             best, action, next_prob, next_support, next_centroids = target_Q.get_best_qvalue_and_action(sp_matrix)
-            next_centroids = r_matrix + self.params['gamma'] * (1 - done_matrix) * next_centroids # [batch, N]
+            next_support = r_matrix + self.params['gamma'] * (1 - done_matrix) * next_support # [batch, N]
 
         # [s a r s_, a_,]
         prob, support, centroids = self.forward(s_matrix, a_matrix)
@@ -278,7 +278,7 @@ class Net(nn.Module):
         # area_2 = (next_prob*next_support).sum(dim=1)
 
         # loss = self.criterion(support[0, :], prob[0, :], next_support[0, :], next_prob[0, :])
-        loss = self.criterion(prob, centroids, next_prob, next_centroids)
+        loss = self.criterion(prob, support.unsqueeze(-1), next_prob, next_support.unsqueeze(-1))
         # breakpoint()
         # loss = torch.sum((-y * torch.log(y_hat + 0.0001)), 1)  # (m , N_ATOM)
         loss = torch.mean(loss)
