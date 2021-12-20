@@ -25,3 +25,4 @@ num_atoms,51,integer
 alpha,0.10,float
 per_beta_start,0.40,float
 loss_type,MSELoss,string
+max_step,40000,integer

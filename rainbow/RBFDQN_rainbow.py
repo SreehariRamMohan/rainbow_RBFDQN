@@ -261,10 +261,11 @@ class Net(nn.Module):
         centroid_locations = self.max_a * self.location_module(s)
         return centroid_locations
 
-    def get_best_qvalue_and_action(self, s):
+    def get_best_qvalue_and_action(self, s, return_allq=False):
         '''
         given a batch of states s, return Q(s,a), max_{a} ([batch x 1], [batch x a_dim])
         '''
+
         all_centroids = self.get_centroid_locations(s)
         weights = rbf_function(all_centroids, all_centroids, self.beta)  # [batch x N x N]
 
@@ -291,6 +292,11 @@ class Net(nn.Module):
             return best, a
         else:
             a = all_centroids[np.arange(len(s)), indices]
+
+            # in the update function we will always have s.shape[0] > 1 since our batch size is >> 1
+            if (return_allq):
+                return best, a, allq
+
             return best, a
 
     def forward(self, s, a):
@@ -510,7 +516,7 @@ class Net(nn.Module):
                 output = torch.mul(centroid_weights, centroid_values)  # [batch x N]
                 Q_star = output.sum(1, keepdim=True)  # [batch x 1]
             else: # NO DOUBLE NO DUELING
-                Q_star, _ = target_Q.get_best_qvalue_and_action(sp_matrix)
+                Q_star, _, allq = target_Q.get_best_qvalue_and_action(sp_matrix, return_allq=True)
 
         if self.params['nstep']:
             Q_star = (self.params["gamma"]**(self.params['nstep_size']-1)) * Q_star
@@ -531,7 +537,12 @@ class Net(nn.Module):
             td_error = torch.abs(y-y_hat).cpu().detach().numpy()
             self.buffer_object.storage.update_priorities(indexes, td_error)
 
-        loss = self.criterion(y_hat, y)
+        # entropy term
+        softmax_func = torch.nn.Softmax(dim=1)
+        action_probs = softmax_func(allq)
+        entropy = 0.0005*torch.sum(torch.sum(-torch.log(action_probs), dim=1)) # [batch_size x num_centroids]
+
+        loss = self.criterion(y_hat, y) + entropy
         self.zero_grad()
         loss.backward()
         self.optimizer.step()
