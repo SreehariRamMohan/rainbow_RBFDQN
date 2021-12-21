@@ -378,6 +378,8 @@ class Net(nn.Module):
                 a = self.e_greedy_gaussian_policy(s, episode, train_or_test)
             elif self.params['policy_type'] == 'gaussian':
                 a = self.gaussian_policy(s, episode, train_or_test)
+            elif self.params['policy_type'] == 'cem':
+                a = self.cem_policy(s, episode, train_or_test)
         return a
 
     def policy(self, s, episode, train_or_test):
@@ -450,6 +452,62 @@ class Net(nn.Module):
             noise = np.random.normal(loc=0.0, scale=self.params['noise'], size=len(a))
             a = a + noise
         return a
+
+    def cem_policy(self, s, episode, train_or_test):
+        '''
+        Given state s, at episode, take random action with p=eps if training
+        Note - epsilon is determined by episode
+        '''
+        epsilon = 1.0 / np.power(episode, 1.0 / self.params['policy_parameter'])
+        if train_or_test == 'train' and random.random() < epsilon:
+            a = self.cem(s)
+            return a.tolist()
+        else:
+            return self.policy(s, episode, train_or_test)
+
+    def cem(self, s, n_elite=10, n_iter=3, batch_size = 100, initial_std=1.0):
+        th_mean = np.zeros(self.env.action_space.shape)
+        th_std = np.ones_like(th_mean) * initial_std
+
+        states = torch.from_numpy(s).float().to(self.device).repeat(batch_size, 1)
+        
+
+        for i in range(n_iter):
+            ths = np.array([th_mean + dth for dth in th_std * np.random.randn(batch_size,th_mean.size)])
+            
+
+            ys = self.forward(states, torch.from_numpy(ths).float().to(self.device)).squeeze()
+            ys = ys.detach().cpu().numpy()
+            elite_inds = ys.argsort()[::-1][:n_elite]
+            elite_ths = ths[elite_inds]
+            th_mean = elite_ths.mean(axis=0)
+            th_std = elite_ths.std(axis=0)
+
+        return th_mean + th_std * np.random.randn(th_mean.size)
+
+
+
+    # def cem(f, th_mean, batch_size, n_iter, elite_frac, state, initial_std=1.0):
+    #     """
+    #     Generic implementation of the cross-entropy method for maximizing a black-box function
+    #     f: a function mapping from vector -> scalar
+    #     th_mean: initial mean over input distribution
+    #     batch_size: number of samples of theta to evaluate per batch
+    #     n_iter: number of batches
+    #     elite_frac: each batch, select this fraction of the top-performing samples
+    #     initial_std: initial standard deviation over parameter vectors
+    #     """
+    #     n_elite = int(np.round(batch_size*elite_frac))
+    #     th_std = np.ones_like(th_mean) * initial_std
+
+    #     for _ in range(n_iter):
+    #         ths = np.array([th_mean + dth for dth in  th_std[None,:]*np.random.randn(batch_size, th_mean.size)])
+    #         ys = np.array([f(th) for th in ths])
+    #         elite_inds = ys.argsort()[::-1][:n_elite]
+    #         elite_ths = ths[elite_inds]
+    #         th_mean = elite_ths.mean(axis=0)
+    #         th_std = elite_ths.std(axis=0)
+    #         yield {'ys' : ys, 'theta_mean' : th_mean, 'y_mean' : ys.mean()}
 
     def update(self, target_Q, count):
         if len(self.buffer_object) < self.params['batch_size']:
