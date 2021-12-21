@@ -24,3 +24,4 @@ noise,0.1,float
 per_beta_start,0.4,float
 alpha,0.10,float
 loss_type,MSELoss,string
+entropy_coefficient,1e-3,float

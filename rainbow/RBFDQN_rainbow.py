@@ -540,7 +540,8 @@ class Net(nn.Module):
         # entropy term
         softmax_func = torch.nn.Softmax(dim=1)
         action_probs = softmax_func(allq)
-        entropy = 0.0005*torch.sum(torch.sum(-torch.log(action_probs), dim=1)) # [batch_size x num_centroids]
+        breakpoint()
+        entropy = self.params["entropy_coefficient"]*torch.mean(torch.sum(-torch.log(action_probs), dim=1)) # [batch_size x num_centroids]
 
         loss = self.criterion(y_hat, y) + entropy
         self.zero_grad()

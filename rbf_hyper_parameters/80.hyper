@@ -25,3 +25,4 @@ per_beta_start,0.40,float
 vmin,0,float
 vmax,500,float
 num_atoms,101,integer
+entropy_coefficient,1e-3,float

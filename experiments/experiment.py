@@ -309,7 +309,6 @@ if __name__ == "__main__":
                                        copy=True)
 
     # Logging with Meta Logger
-
     meta_logger = MetaLogger(full_experiment_name)
     logging_filename = f"seed_{args.seed}.pkl"
 
