@@ -401,6 +401,10 @@ class Net(nn.Module):
             self.train_noisy()  ## set self.train flags in modules
         else:
             self.eval_noisy()
+	
+        if episode >= self.params['noisy_episode_cutoff']:
+            ## This effectively will disable training variance.
+            self.eval_noisy()
 
         ## Set the policy to use here for testing (noisy / noisy with ep-greedy)
         a = None
