@@ -95,6 +95,12 @@ if __name__ == "__main__":
                         help=
                         """Specify where noisy layers should be inserted:
                         centroid, value, or both""")
+    
+    parser.add_argument("--noisy_episode_cutoff",
+                        type=int,
+                        default=1000,
+                        help=
+                        """Specify when noisy sampling should be cutoff""")
 
     parser.add_argument("--distributional",
                         type=utils.boolify,
@@ -198,6 +204,7 @@ if __name__ == "__main__":
     params['should_schedule_beta'] = args.should_schedule_beta
     params['loss_type'] = args.loss_type
     params['random_betas'] = args.random_betas
+    params['noisy_episode_cutoff'] = args.noisy_episode_cutoff
 
     # change hyper parameters from command line
     if args.learning_rate:
