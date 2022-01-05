@@ -15,7 +15,7 @@ from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
 
 from rainbow.RBFDQN_rainbow import Net
-from rainbow.RBFDQN_dis import Net as DistributionalNet
+from rainbow.dis import Net as DistributionalNet
 
 import torch
 import numpy
@@ -271,6 +271,7 @@ if __name__ == "__main__":
         print("Running on the CPU")
 
     env = gym.make(params["env_name"])
+    test_env = gym.make(params["env_name"])
 
     params['env'] = env
 
@@ -344,6 +345,8 @@ if __name__ == "__main__":
 
     rewards_per_typical_episode = 0
 
+    loss = []
+
     while (steps <  params['max_step']):
 
         if (steps%100000 == 0):
@@ -360,12 +363,14 @@ if __name__ == "__main__":
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
 
-            if steps%steps_per_typical_episode == 0:
+            # we do 1 update to the Q network every update_frequency steps. 
+            if steps%params['update_frequency'] == 0:
                 # now update the Q network
-                loss = []
-                for count in range(params['updates_per_episode']):
-                    temp, update_params = Q_object.update(Q_object_target, count)
-                    loss.append(temp)
+                temp, update_params = Q_object.update(Q_object_target)
+                loss.append(temp)
+            
+            if steps%steps_per_typical_episode == 0:
+                # clean up the buffer
                 loss_li.append(numpy.mean(loss))
                 meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
 
@@ -374,14 +379,15 @@ if __name__ == "__main__":
 
                 meta_logger.append_datapoint("average_q", update_params['average_q'], write=True)
                 meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
+                loss = []
 
-            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_episode'] - 1):
+            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
                 temp = []
                 for _ in range(10):
-                    s, G, done, t = env.reset(), 0, False, 0
+                    s, G, done, t = test_env.reset(), 0, False, 0
                     while done == False:
                         a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test')
-                        sp, r, done, _ = env.step(numpy.array(a))
+                        sp, r, done, _ = test_env.step(numpy.array(a))
                         s, G, t = sp, G + r, t + 1
                     temp.append(G)
 

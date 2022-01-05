@@ -24,3 +24,6 @@ per_beta_start,0.40,float
 vmin,-200,integer
 vmax,200,integer
 num_atoms,51,integer
+update_frequency,4,integer
+quantiles,200,integer
+train_epsilon,0,float

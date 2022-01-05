@@ -61,6 +61,7 @@ def moving_average(a, n=10):
 def smoothen_data(scores, n=10):
     print(scores.shape)
     smoothened_cols = scores.shape[1] - n + 1
+    
     smoothened_data = np.zeros((scores.shape[0], smoothened_cols))
     for i in range(scores.shape[0]):
         smoothened_data[i, :] = moving_average(scores[i, :], n=n)
@@ -90,9 +91,11 @@ def generate_plot(score_array, label, smoothen=False):
 
     #x1 = [((i)*10) for i in x1]
 
+    if label in color_legend_map: 
+        plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, color=color_legend_map[label])
+    else:
+        plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, linestyle="dashed")       
 
-    plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, color=color_legend_map[label])
-    
     x2 = list(range(len(top)))
     
     #x2 = [((i)*10*(100/91)) for i in x2]
@@ -101,7 +104,8 @@ def generate_plot(score_array, label, smoothen=False):
 
     #x2 = [((i)*10) for i in x2]
      
-    plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
+    if label in color_legend_map:
+        plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
 
     plt.xlim(0, 2000)
 

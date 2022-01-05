@@ -122,9 +122,9 @@ def make_graphs(experiment_name,
     #export_legend(legend)
 
     #plt.show()
-    plt.title("Walker2d")
+    plt.title("Humanoid")
 
-    plt.savefig("./Ant.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig("./Humanoid.pdf", format="pdf", bbox_inches="tight")
 
 
 def main():
@@ -152,7 +152,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "/home/sreehari/Desktop/rainbow_RBFDQN/results/Walker/Ant_Step_Based"
+    experiment_name = "/home/sreehari/Downloads/NeurIPS_Workshop_Results/results/Humanoid/Humanoid_Step"
     #experiment_name = "/home/sreehari/Downloads/Onager Sweeps Rainbow RBFDQN/Ant2/"
 
     run_titles = get_all_run_titles(experiment_name)

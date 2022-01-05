@@ -20,7 +20,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy
 import pickle
-from geomloss import SamplesLoss
 
 
 def rbf_function_on_action(centroid_locations, action, beta):
@@ -82,15 +81,38 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
-        self.value_module = nn.Sequential(
-            nn.Linear(self.state_size, self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.params['layer_size']),
-            nn.ReLU(),
-            nn.Linear(self.params['layer_size'], self.N * self.N_QUANTILE),
-        )
+        if self.params['dueling']:
+            # add an extra output param to the value_module which will be the "base" support value. 
+            # all the other supports are offset from this one value. 
+            self.value_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.N * self.N_QUANTILE),
+            )
+
+            self.base_support_value = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], 1),
+            )
+        else:
+            self.value_module = nn.Sequential(
+                nn.Linear(self.state_size, self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                nn.ReLU(),
+                nn.Linear(self.params['layer_size'], self.N * self.N_QUANTILE),
+            )
 
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
@@ -121,16 +143,32 @@ class Net(nn.Module):
         self.location_module[3].weight.data.uniform_(-.1, .1)
         self.location_module[3].bias.data.uniform_(-1., 1.)
 
-        self.params_dic = [
-            {
-              'params': self.value_module.parameters(),
-              'lr': self.params['learning_rate']
-            },
-            {
-                'params': self.location_module.parameters(),
-                'lr': self.params['learning_rate_location_side']
-            }
-        ]
+        if self.params['dueling']:
+            self.params_dic = [
+                {
+                    'params': self.value_module.parameters(),
+                    'lr': self.params['learning_rate']
+                },
+                {
+                    'params': self.base_support_value.parameters(),
+                    'lr': self.params['learning_rate']
+                },
+                {
+                    'params': self.location_module.parameters(),
+                    'lr': self.params['learning_rate_location_side']
+                }
+            ]
+        else:
+            self.params_dic = [
+                {
+                'params': self.value_module.parameters(),
+                'lr': self.params['learning_rate']
+                },
+                {
+                    'params': self.location_module.parameters(),
+                    'lr': self.params['learning_rate_location_side']
+                }
+            ]
         try:
             if self.params['optimizer'] == 'RMSprop':
                 self.optimizer = optim.RMSprop(self.params_dic)
@@ -149,12 +187,23 @@ class Net(nn.Module):
         """
         batch_size = s.shape[0]
         centroid_quantiles = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x N_QUANTILES]
-        centroid_values = (centroid_quantiles * self.Prob).sum(axis=2)
+
+        centroid_values = (centroid_quantiles * self.Prob).sum(axis=2) 
+
+        if self.params['dueling']:
+            base_centroid_value = self.base_support_value(s)
+            centroid_values = centroid_values + base_centroid_value
+
         return centroid_values  # [batch x N]
 
     def get_centroid_quantiles(self, s):
         batch_size = s.shape[0]
         centroid_quantiles = self.value_module(s).reshape(batch_size, self.N, -1)  # [batch x N x N_QUANTILES]
+        
+        if self.params['dueling']:
+            base_centroid_quantile_value = self.base_support_value(s).reshape(-1, 1, 1)
+            centroid_quantiles = centroid_quantiles + base_centroid_quantile_value
+
         return centroid_quantiles
 
     def get_centroid_locations(self, s):
@@ -193,7 +242,7 @@ class Net(nn.Module):
         output = torch.bmm(centroid_weights.unsqueeze(1), centroid_quantiles).squeeze(1)  # [batch x N]
         return output
 
-    def e_greedy_policy(self, s, episode, train_or_test):
+    def execute_policy(self, s, episode, train_or_test):
         """
         Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
@@ -211,7 +260,7 @@ class Net(nn.Module):
                 _,  a, _ = self.get_best_qvalue_and_action(s)
                 a = a.cpu().numpy()
             self.train()
-            return a.squeeze()
+            return a.squeeze(0)
 
     def softmax_policy(self, s):
         """
@@ -258,8 +307,14 @@ class Net(nn.Module):
             update_param['average_q'] = 0
             update_param['average_q_star'] = 0
             return 0, update_param
+        
         batch_size = self.params['batch_size']
-        s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+
+        if self.params['per']:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
+        else:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
+
         r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
 
         s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
@@ -290,8 +345,8 @@ class Net(nn.Module):
         tau = torch.FloatTensor(QUANTS_TARGET).view(1, -1, 1).to(self.device)
         weights = torch.abs(tau - u.le(0.).float())
         # loss = self.criterion(y_hat, y.type(torch.float32))
-        loss = self.criteria(y_hat, y,  reduction='none')
-        loss = torch.mean(weights * loss)
+        criterion_loss = self.criteria(y_hat, y,  reduction='none')
+        loss = torch.mean(weights * criterion_loss)
         self.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.value_module.parameters(),0.1)
@@ -303,6 +358,11 @@ class Net(nn.Module):
             online=self,
             alpha=self.params['target_network_learning_rate'],
             copy=False)
+
+        if self.params['per']:
+            td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
+            self.buffer_object.storage.update_priorities(indexes, td_error)
+
         update_param = {}
         update_param['average_q'] = 0
         update_param['average_q_star'] = 0
