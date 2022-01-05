@@ -1,6 +1,6 @@
 env_name,Pendulum-v0,string
 max_episode,200,integer
-max_step,200000,integer
+max_step,40000,integer
 num_layers,3,integer
 layer_size,512,integer
 num_layers_action_side,1,integer
@@ -26,3 +26,6 @@ num_atoms,51,integer
 alpha,0.10,float
 per_beta_start,0.40,float
 loss_type,MSELoss,string
+update_frequency,4,integer
+quantiles,200,integer
+train_epsilon,0,float
