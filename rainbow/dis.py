@@ -286,14 +286,14 @@ class Net(nn.Module):
         output = torch.bmm(centroid_weights.unsqueeze(1), centroid_quantiles).squeeze(1)  # [batch x N]
         return output
 
-    def execute_policy(self, s, episode, train_or_test):
+    def execute_policy(self, s, episode, train_or_test, steps=None):
         """
         Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
         """
 
         if self.params['noisy_layers']:
-            a = self.noisy_policy(s, episode, train_or_test)
+            a = self.noisy_policy(s, episode, train_or_test, steps=steps)
             return a
         else:
             return self.e_greedy_policy(s, episode, train_or_test)
@@ -314,7 +314,7 @@ class Net(nn.Module):
             self.train()
             return a.squeeze(0)
 
-    def noisy_policy(self, s, episode, train_or_test):
+    def noisy_policy(self, s, episode, train_or_test, steps=0):
         '''
         Evaluates the policy, used in noisynet setup
         '''
@@ -323,7 +323,7 @@ class Net(nn.Module):
         else:
             self.eval_noisy()
 	
-        if episode >= self.params['noisy_episode_cutoff']:
+        if steps >= self.params['noisy_episode_cutoff']:
             ## This effectively will disable training variance.
             self.eval_noisy()
 
