@@ -183,9 +183,8 @@ class Net(nn.Module):
         torch.nn.init.zeros_(self.location_module[0].bias)
 
         if not self.params['noisy_layers']:
-            self.location_module[4].weight.data.uniform_(-.1, .1)
-            self.location_module[4].bias.data.uniform_(-1., 1.)
-
+            self.location_module[3].weight.data.uniform_(-.1, .1)
+            self.location_module[3].bias.data.uniform_(-1., 1.)
 
         if self.params['dueling']:
             self.params_dic = [
@@ -255,7 +254,6 @@ class Net(nn.Module):
         """
         given a batch of s, get all centroid_locations, [batch x N x a_dim]
         """
-        breakpoint()
         centroid_locations = self.max_a * self.location_module(s)
         return centroid_locations
 

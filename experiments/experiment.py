@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--layer_normalization",
                         type=utils.boolify,
-                        default=True,
+                        default=False,
                         help=
                         """apply normalization immediately
                         prior to activations in any hidden layers""")
@@ -263,6 +263,8 @@ if __name__ == "__main__":
 
     params['layer_normalization'] = args.layer_normalization
     params['noisy_layers'] = args.noisy_layers
+    if params['noisy_layers']:
+        params["layer_normalization"] = True
     params['noisy_where'] = args.noisy_where
 
     print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
