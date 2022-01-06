@@ -8,7 +8,6 @@ import argparse
 import os
 import datetime
 import sys
-
 sys.path.append("..")
 
 from common import utils, utils_for_q_learning, buffer_class
@@ -317,6 +316,10 @@ if __name__ == "__main__":
                                        online=Q_object,
                                        alpha=params['target_network_learning_rate'],
                                        copy=True)
+
+
+    print(f"Q_object: {Q_object}")
+    print(f"Q_target: {Q_object_target}")
 
     # Logging with Meta Logger
 

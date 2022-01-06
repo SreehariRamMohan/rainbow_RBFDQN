@@ -64,6 +64,12 @@ class NoisyLinear(nn.Module):
         else:
             return F.linear(inputs, self.weights_mu, self.bias_mu)
 
+    def __repr__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return f"NoisyLinear({self.input_size}, {self.output_size}, {self.sigma_init})"
+
     @staticmethod
     def scale_noise(size):
         x = torch.randn(size)
