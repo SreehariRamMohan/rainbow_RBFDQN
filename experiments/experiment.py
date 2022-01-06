@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--layer_normalization",
                         type=utils.boolify,
-                        default=False,
+                        default=True,
                         help=
                         """apply normalization immediately
                         prior to activations in any hidden layers""")
