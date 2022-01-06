@@ -24,6 +24,6 @@ noise,0.1,float
 per_beta_start,0.4,float
 alpha,0.10,float
 loss_type,MSELoss,string
-update_frequency,4,integer
+update_frequency,1,integer
 quantiles,200,integer
 train_epsilon,0,float

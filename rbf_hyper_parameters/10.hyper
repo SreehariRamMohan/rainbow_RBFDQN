@@ -25,6 +25,6 @@ vmax,300,integer
 num_atoms,51,integer
 alpha,0.10,float
 per_beta_start,0.4,float
-update_frequency,4,integer
+update_frequency,1,integer
 quantiles,200,integer
 train_epsilon,0,float

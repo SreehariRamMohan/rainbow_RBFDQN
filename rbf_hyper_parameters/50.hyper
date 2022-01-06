@@ -26,6 +26,6 @@ per_beta_start,0.40,float
 vmin,0,float
 vmax,500,float
 num_atoms,101,integer
-update_frequency,4,integer
+update_frequency,1,integer
 quantiles,200,integer
 train_epsilon,0,float
