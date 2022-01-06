@@ -8,7 +8,6 @@ import argparse
 import os
 import datetime
 import sys
-
 sys.path.append("..")
 
 from common import utils, utils_for_q_learning, buffer_class
@@ -263,6 +262,8 @@ if __name__ == "__main__":
 
     params['layer_normalization'] = args.layer_normalization
     params['noisy_layers'] = args.noisy_layers
+    if params['noisy_layers']:
+        params["layer_normalization"] = True
     params['noisy_where'] = args.noisy_where
 
     print("Layer Normalizaton: ", params['layer_normalization'], "Noisy Layers: ", params['noisy_layers'])
@@ -315,6 +316,10 @@ if __name__ == "__main__":
                                        online=Q_object,
                                        alpha=params['target_network_learning_rate'],
                                        copy=True)
+
+
+    print(f"Q_object: {Q_object}")
+    print(f"Q_target: {Q_object_target}")
 
     # Logging with Meta Logger
 

@@ -20,6 +20,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy
 import pickle
+from common.noisy_layer import NoisyLinear
 
 
 def rbf_function_on_action(centroid_locations, action, beta):
@@ -81,67 +82,109 @@ class Net(nn.Module):
 
         self.state_size, self.action_size = state_size, action_size
 
+        def layer_norm(s):
+                if self.params['layer_normalization']:
+                    return (nn.LayerNorm(s),)
+                else:
+                    return tuple()
+
+        def noisy_linear(dim_in, dim_out):
+            if self.params['noisy_layers']:
+                return NoisyLinear(dim_in, dim_out, sigma_init=self.params['sigma_noise'])
+            else:
+                return nn.Linear(dim_in, dim_out)
+
+        ## Control for enable / disable of noisy_layers in value module vs centroid module
+        old_noisy_value = self.params['noisy_layers']
+        if self.params['noisy_where'] == 'centroid':
+            ## Disable noisy nets for value network
+            self.params['noisy_layers'] = False
+            
         if self.params['dueling']:
             # add an extra output param to the value_module which will be the "base" support value. 
             # all the other supports are offset from this one value. 
             self.value_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.N * self.N_QUANTILE),
+                noisy_linear(self.params['layer_size'], self.N * self.N_QUANTILE),
             )
 
             self.base_support_value = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], 1),
+                noisy_linear(self.params['layer_size'], 1),
             )
         else:
             self.value_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.params['layer_size']),
+                noisy_linear(self.params['layer_size'], self.params['layer_size']),
+                *layer_norm(self.params['layer_size']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size'], self.N * self.N_QUANTILE),
+                noisy_linear(self.params['layer_size'], self.N * self.N_QUANTILE),
             )
 
+         ## Control for enable / disable of noisy_layers in value module vs centroid module
+        self.params['noisy_layers'] = old_noisy_value
+        old_noisy_value = self.params['noisy_layers']
+        if self.params['noisy_where'] == 'value':
+            ## Disable noisy nets for centroid network
+            self.params['noisy_layers'] = False
+        
         if self.params['num_layers_action_side'] == 1:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'], self.action_size * self.N),
+                noisy_linear(self.params['layer_size_action_side'], self.action_size * self.N),
+                *layer_norm(self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 nn.Tanh(),
             )
         elif self.params['num_layers_action_side'] == 2:
             self.location_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'], self.params['layer_size_action_side']),
+                noisy_linear(self.params['layer_size_action_side'], self.params['layer_size_action_side']),
+                *layer_norm(self.params['layer_size_action_side']),
                 nn.Dropout(p=self.params['dropout_rate']),
                 nn.ReLU(),
-                nn.Linear(self.params['layer_size_action_side'], self.action_size * self.N),
+                noisy_linear(self.params['layer_size_action_side'], self.action_size * self.N),
+                *layer_norm(self.action_size * self.N),
                 utils_for_q_learning.Reshape(-1, self.N, self.action_size),
                 # shape: [batch x num_centroids x action_size]
                 nn.Tanh(),
             )
 
+        self.params['noisy_layers'] = old_noisy_value
+
         torch.nn.init.xavier_uniform_(self.location_module[0].weight)
         torch.nn.init.zeros_(self.location_module[0].bias)
 
-        self.location_module[3].weight.data.uniform_(-.1, .1)
-        self.location_module[3].bias.data.uniform_(-1., 1.)
+        if not self.params['noisy_layers']:
+            self.location_module[3].weight.data.uniform_(-.1, .1)
+            self.location_module[3].bias.data.uniform_(-1., 1.)
 
         if self.params['dueling']:
             self.params_dic = [
@@ -181,6 +224,7 @@ class Net(nn.Module):
         self.criteria = torch.nn.functional.smooth_l1_loss
         self.to(self.device)
 
+    
     def get_centroid_values(self, s):
         """
         given a batch of s, get all centroid values, [batch x N]
@@ -247,6 +291,14 @@ class Net(nn.Module):
         Given state s, at episode, take random action with p=eps if training
         Note - epsilon is determined by episode
         """
+
+        if self.params['noisy_layers']:
+            a = self.noisy_policy(s, episode, train_or_test)
+            return a
+        else:
+            return self.e_greedy_policy(s, episode, train_or_test)
+
+    def e_greedy_policy(self, s, episode, train_or_test):
         epsilon = 1.0 / numpy.power(episode, 1.0 / self.params['policy_parameter'])
         epsilon = self.params['train_epsilon'] if epsilon < self.params['train_epsilon'] else epsilon
         if train_or_test == 'train' and random.random() < epsilon:
@@ -261,6 +313,32 @@ class Net(nn.Module):
                 a = a.cpu().numpy()
             self.train()
             return a.squeeze(0)
+
+    def noisy_policy(self, s, episode, train_or_test):
+        '''
+        Evaluates the policy, used in noisynet setup
+        '''
+        if train_or_test == 'train':
+            self.train_noisy()  ## set self.train flags in modules
+        else:
+            self.eval_noisy()
+	
+        if episode >= self.params['noisy_episode_cutoff']:
+            ## This effectively will disable training variance.
+            self.eval_noisy()
+
+        ## Set the policy to use here for testing (noisy / noisy with ep-greedy)
+        a = None
+        if self.params['policy_type'] == 'e_greedy':
+            a = self.e_greedy_policy(s, episode, train_or_test)
+        elif self.params['policy_type'] == 'e_greedy_gaussian':
+            a = self.e_greedy_gaussian_policy(s, episode, train_or_test)
+        elif self.params['policy_type'] == 'gaussian':
+            a = self.gaussian_policy(s, episode, train_or_test)
+        else:
+            a = self.policy(s, episode, train_or_test)
+        self.train_noisy()  ## set self.train flags in modules
+        return a
 
     def softmax_policy(self, s):
         """
@@ -300,6 +378,59 @@ class Net(nn.Module):
             action = actions[0, index, :]
         self.train()
         return action.cpu().numpy()
+
+    def train_noisy(self):
+        """
+        Serves same purpose as .train(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def train_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.train_noise()
+
+        if not self.params["dueling"]:
+            train_module_noise(self.value_module)
+            train_module_noise(self.location_module)
+        else:
+            train_module_noise(self.base_support_value)
+            train_module_noise(self.value_module)
+            train_module_noise(self.location_module)
+
+    def eval_noisy(self):
+        """
+        Serves same purpose as .eval(), excepts only applies this setting to
+        NoisyLayers
+        """
+        def eval_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.eval_noise()
+
+        if not self.params["dueling"]:
+            eval_module_noise(self.value_module)
+            eval_module_noise(self.location_module)
+        else:
+            eval_module_noise(self.base_support_value)
+            eval_module_noise(self.value_module)
+            eval_module_noise(self.location_module)
+
+    def reset_noise(self):
+        """
+        Iterates through each module in the network and calls reset_noise() on any
+        layer that is a NoisyLinear layer
+        """
+        def reset_module_noise(module):
+            for m in module:
+                if isinstance(m, (NoisyLinear,)):
+                    m.reset_noise()
+
+        if not self.params['dueling']:
+            reset_module_noise(self.value_module)
+        else:
+            reset_module_noise(self.base_support_value)
+            reset_module_noise(self.value_module)
+        reset_module_noise(self.location_module)
 
     def update(self, target_Q):
         if len(self.buffer_object) < self.params['batch_size']:
@@ -362,6 +493,9 @@ class Net(nn.Module):
         if self.params['per']:
             td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
             self.buffer_object.storage.update_priorities(indexes, td_error)
+        if self.params['noisy_layers']:
+            self.reset_noise()
+            target_Q.reset_noise()
 
         update_param = {}
         update_param['average_q'] = 0
