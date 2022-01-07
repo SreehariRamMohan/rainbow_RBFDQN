@@ -95,11 +95,12 @@ if __name__ == "__main__":
                         """Specify where noisy layers should be inserted:
                         centroid, value, or both""")
     
-    parser.add_argument("--noisy_episode_cutoff",
-                        type=int,
-                        default=1000,
-                        help=
-                        """Specify when noisy sampling should be cutoff""")
+    # By default this is max_steps / 2. 
+    # parser.add_argument("--noisy_episode_cutoff",
+    #                     type=int,
+    #                     default=1000,
+    #                     help=
+    #                     """Specify when noisy sampling should be cutoff""")
 
     parser.add_argument("--distributional",
                         type=utils.boolify,
@@ -203,7 +204,7 @@ if __name__ == "__main__":
     params['should_schedule_beta'] = args.should_schedule_beta
     params['loss_type'] = args.loss_type
     params['random_betas'] = args.random_betas
-    params['noisy_episode_cutoff'] = args.noisy_episode_cutoff
+    params['noisy_episode_cutoff'] = params['max_step']/2
 
     # change hyper parameters from command line
     if args.learning_rate:
@@ -367,7 +368,7 @@ if __name__ == "__main__":
         s, done, t = env.reset(), False, 0
         
         while not done:
-            a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train')
+            a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             rewards_per_typical_episode += r
@@ -398,7 +399,7 @@ if __name__ == "__main__":
                 for _ in range(10):
                     s, G, done, t = test_env.reset(), 0, False, 0
                     while done == False:
-                        a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test')
+                        a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test', steps=(steps+1))
                         sp, r, done, _ = test_env.step(numpy.array(a))
                         s, G, t = sp, G + r, t + 1
                     temp.append(G)
