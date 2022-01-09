@@ -65,11 +65,11 @@ class Net(nn.Module):
         self.beta = torch.Tensor([self.params['temperature']])
 
         if (self.params['random_betas']):
-            # initialize random betas to be between 0 and 0.25 for each centroid. 
+            # initialize random betas to be between 0 and 0.25 for each centroid.
             # the random betas are fixed for each centroid index throughout training.
             self.beta = torch.normal(mean=self.params['temperature'], std=math.sqrt(self.N)/self.N, size=(1, self.N))
             #self.beta.to(self.device)
-           
+
         self.buffer_object = buffer_class.buffer_class(
             max_length=self.params['max_buffer_size'],
             env=self.env,
@@ -110,7 +110,7 @@ class Net(nn.Module):
                 noisy_linear(self.params['layer_size'], self.N),
             )
         else:
-    
+
             self.advantage_module = nn.Sequential(
                 nn.Linear(self.state_size, self.params['layer_size']),
                 *layer_norm(self.params['layer_size']),
@@ -367,7 +367,7 @@ class Net(nn.Module):
 
         reset_module_noise(self.location_module)
 
-    def execute_policy(self, s, episode, train_or_test):
+    def execute_policy(self, s, episode, train_or_test, steps=None):
         a = None
         if self.params['noisy_layers']:
             a = self.noisy_policy(s, episode, train_or_test)
@@ -401,7 +401,7 @@ class Net(nn.Module):
             self.train_noisy()  ## set self.train flags in modules
         else:
             self.eval_noisy()
-	
+
         if episode >= self.params['noisy_episode_cutoff']:
             ## This effectively will disable training variance.
             self.eval_noisy()
@@ -455,7 +455,7 @@ class Net(nn.Module):
             a = a + noise
         return a
 
-    def update(self, target_Q, count):
+    def update(self, target_Q):
         if len(self.buffer_object) < self.params['batch_size']:
             update_param = {}
             update_param['average_q'] = 0
