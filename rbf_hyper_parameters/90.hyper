@@ -20,7 +20,7 @@ updates_per_episode,1000,integer
 dropout_rate,0.4,float
 optimizer,Adam,string
 policy_type,gaussian,string
-noise,0.1,float
+noise,0.075,float
 per_beta_start,0.4,float
 alpha,0.10,float
 loss_type,MSELoss,string

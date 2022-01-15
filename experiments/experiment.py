@@ -168,6 +168,8 @@ if __name__ == "__main__":
                         required=False,  ## with the value from the commandline
                         default="unset")
 
+    parser.add_argument('--which_gpu', '-gpu_id', default=0)
+
     # use randomly initialized betas for all centroids (fixed) throughout training. 
     parser.add_argument("--random_betas", 
                         type=utils.boolify, 
@@ -271,10 +273,10 @@ if __name__ == "__main__":
     print("Noisy Layers Applied to: ", params['noisy_where'])
 
     utils.save_hyper_parameters(params, args.seed)
-
+    
     if torch.cuda.is_available():
-        device = torch.device("cuda")
-        print("Running on the GPU")
+        device = torch.device("cuda:" + str(args.which_gpu))
+        print("Using GPU id {}".format(args.which_gpu))
     else:
         device = torch.device("cpu")
         print("Running on the CPU")

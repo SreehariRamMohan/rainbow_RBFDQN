@@ -340,6 +340,24 @@ class Net(nn.Module):
         self.train_noisy()  ## set self.train flags in modules
         return a
 
+    def gaussian_policy(self, s, episode, train_or_test):
+        '''
+        Given state s, at episode, take random action with p=eps if training
+        Note - epsilon is determined by episode
+        '''
+        self.eval()
+        s_matrix = numpy.array(s).reshape(1, self.state_size)
+        with torch.no_grad():
+            s = torch.from_numpy(s_matrix).float().to(self.device)
+            _,  a, _ = self.get_best_qvalue_and_action(s)
+            a = a.cpu().numpy()
+        self.train()
+        a = a.squeeze(0)
+        if train_or_test == 'train':
+            noise = np.random.normal(loc=0.0, scale=self.params['noise'], size=len(a))
+            a = a + noise
+        return a
+
     def softmax_policy(self, s):
         """
         Given state s, sample one action among the centroids according to the centroid values
