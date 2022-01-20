@@ -94,7 +94,7 @@ def generate_plot(score_array, label, smoothen=False):
     if label in color_legend_map: 
         plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, color=color_legend_map[label])
     else:
-        plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9, linestyle="dashed")       
+        plt.plot(x1, mean, linewidth=2, label=label, alpha=0.9)       
 
     x2 = list(range(len(top)))
     
@@ -106,8 +106,9 @@ def generate_plot(score_array, label, smoothen=False):
      
     if label in color_legend_map:
         plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
-
-    plt.xlim(0, 2000)
+    else:
+        plt.fill_between(x2, top, bottom, alpha=0.2)
+    plt.xlim(0, 200)
 
 def get_all_run_titles(experiment_name):
     parent = Path(experiment_name)

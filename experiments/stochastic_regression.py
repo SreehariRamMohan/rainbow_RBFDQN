@@ -148,9 +148,9 @@ class StochasticRegression(gym.Env):
         states_torch = torch.zeros(actions.shape[0], self.s_dim).to(Q_object.device)
         Z_torch = Q_object.forward(states_torch, actions_torch)
         Z = Z_torch.detach().cpu().numpy()
+
         if (Q_object.params['distributional']):
             Z = Z.mean(axis=1)
-
         Z = Z.reshape(X.shape)
 
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
@@ -175,7 +175,7 @@ def load_and_plot_q(Q_object, saved_network_dir):
     Q_object.eval()
     Q_object.env.plot_agent(Q_object, "plotted_q_func.jpg")
 
-    Q_object.env.plot_reward_functions("f_reward.jpg")
+    Q_object.env.plot_reward_functions("reward_function.jpg")
 
 
 if __name__ == "__main__":

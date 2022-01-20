@@ -122,9 +122,10 @@ def make_graphs(experiment_name,
     #export_legend(legend)
 
     #plt.show()
-    plt.title("Humanoid")
-
-    plt.savefig("./Humanoid.pdf", format="pdf", bbox_inches="tight")
+    
+    plt.title("Lunar Lander")
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig("./lander.pdf", format="pdf", bbox_inches="tight")
 
 
 def main():
@@ -152,7 +153,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "/home/sreehari/Downloads/NeurIPS_Workshop_Results/results/Humanoid/Humanoid_Step"
+    experiment_name = "/home/sreehari/Downloads/ICML_2022_Results/LunarLander"
     #experiment_name = "/home/sreehari/Downloads/Onager Sweeps Rainbow RBFDQN/Ant2/"
 
     run_titles = get_all_run_titles(experiment_name)
