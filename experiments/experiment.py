@@ -16,6 +16,8 @@ from common.logging_utils import MetaLogger
 from rainbow.RBFDQN_rainbow import Net
 from rainbow.dis import Net as DistributionalNet
 
+from stochastic_regression import StochasticRegression, load_and_plot_q
+
 import torch
 import numpy
 import gym
@@ -170,6 +172,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--which_gpu', '-gpu_id', default=0)
 
+    parser.add_argument("--demo_regression", type=utils.boolify, default=False, required=False)
+    parser.add_argument("--load_model", type=str, default="", required=False)
+
     # use randomly initialized betas for all centroids (fixed) throughout training. 
     parser.add_argument("--random_betas", 
                         type=utils.boolify, 
@@ -185,9 +190,7 @@ if __name__ == "__main__":
     utils.create_log_dir(full_experiment_name)
     hyperparams_dir = utils.create_log_dir(
         os.path.join(full_experiment_name, "hyperparams"))
-
     params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, "rbf")
-
     params['hyper_parameters_name'] = args.hyper_parameter_name
     params['full_experiment_file_path'] = os.path.join(os.getcwd(), full_experiment_name)
 
@@ -281,8 +284,16 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("Running on the CPU")
 
-    env = gym.make(params["env_name"])
-    test_env = gym.make(params["env_name"])
+    if args.demo_regression:
+        env = StochasticRegression(episode_length=200)
+        test_env = StochasticRegression(episode_length=200)
+        params['env_name'] = "demo_regression"
+        params['gamma'] = 0
+        params['max_step'] = 20000
+        params["log"] = True
+    else:
+        env = gym.make(params["env_name"])
+        test_env = gym.make(params["env_name"])
 
     params['env'] = env
 
@@ -320,6 +331,9 @@ if __name__ == "__main__":
                                        alpha=params['target_network_learning_rate'],
                                        copy=True)
 
+    if args.demo_regression and args.load_model != "":
+        load_and_plot_q(Q_object, args.load_model)
+        exit(1)
 
     print(f"Q_object: {Q_object}")
     print(f"Q_target: {Q_object_target}")
@@ -351,7 +365,8 @@ if __name__ == "__main__":
         "HalfCheetah-v3": 1000,
         "Ant-v3": 1000,
         "Humanoid-v2":1000,
-        "Walker2d-v2":1000
+        "Walker2d-v2":1000,
+        "demo_regression":100
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
@@ -414,7 +429,7 @@ if __name__ == "__main__":
                 utils_for_q_learning.save(G_li, loss_li, params, "rbf")
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
 
-            if (params["log"] and ((steps % 50*steps_per_typical_episode == 0) or steps == (params['max_episode'] + 1))):
+            if (params["log"] and ((steps % (50*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
                 if not os.path.exists(path):
                     try:
@@ -423,8 +438,8 @@ if __name__ == "__main__":
                         print("Creation of the directory %s failed" % path)
                     else:
                         print("Successfully created the directory %s " % path)
-                torch.save(Q_object.state_dict(), os.path.join(path, "episode_" + str(steps) + "_seed_" + str(args.seed)))
-                torch.save(Q_object_target.state_dict(), os.path.join(path, "target_episode_" + str(steps) + "_seed_" + str(args.seed)))
+                torch.save(Q_object.state_dict(), os.path.join(path, "step_" + str(steps) + "_seed_" + str(args.seed)))
+                torch.save(Q_object_target.state_dict(), os.path.join(path, "target_step_" + str(steps) + "_seed_" + str(args.seed)))
 
             steps += 1
 
