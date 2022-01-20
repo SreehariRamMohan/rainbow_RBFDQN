@@ -148,6 +148,9 @@ class StochasticRegression(gym.Env):
         states_torch = torch.zeros(actions.shape[0], self.s_dim).to(Q_object.device)
         Z_torch = Q_object.forward(states_torch, actions_torch)
         Z = Z_torch.detach().cpu().numpy()
+        if (Q_object.params['distributional']):
+            Z = Z.mean(axis=1)
+
         Z = Z.reshape(X.shape)
 
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
