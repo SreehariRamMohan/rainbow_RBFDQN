@@ -177,29 +177,46 @@ class StochasticRegression(gym.Env):
             Z_output_neg_18 = Z_output_neg_18.squeeze()
             Z_output_pos_18 = Z_output_pos_18.squeeze()
 
-            #plt.hist(x=Z_output_zeros, bins=200)
-            plt.figure(figsize=(5,2))
-            plt.xlabel("Support Value")
+            from mpl_toolkits.axes_grid1 import ImageGrid
+
+            fig = plt.figure(figsize=(6, 6))
+            grid = ImageGrid(fig, 111,  # similar to subplot(111)
+                nrows_ncols=(3, 1),  # creates 2x2 grid of axes
+                axes_pad=0.3,  # pad between axes in inch.
+                cbar_mode="single",
+                cbar_location="right",
+                cbar_pad=0.1
+            )
+
             plt.title("Support Location Frequency")
 
-            fig, axs = plt.subplots(3)
-            fig.suptitle('Support location' )
-            fig.tight_layout()
-            axs[0].hist2d(x=Z_output_neg_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
-            axs[0].get_yaxis().set_ticks([])
+            # fig, axs = plt.subplots(3)
+            # fig.tight_layout()
+            
+            ax1 = grid[0]
+            ax1.hist2d(x=Z_output_neg_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            ax1.get_yaxis().set_ticks([])
+            ax1.title.set_text('Supports for (-1.8, 0)')
 
+            ax2 = grid[1]
+            ax2.hist2d(x=Z_output_zeros, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            ax2.get_yaxis().set_ticks([])
+            ax2.title.set_text('Supports for (0, 0)')
 
-            axs[1].hist2d(x=Z_output_zeros, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
-            axs[1].get_yaxis().set_ticks([])
+            ax3 = grid[2]
+            h = ax3.hist2d(x=Z_output_pos_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            ax3.get_yaxis().set_ticks([])
+            ax3.title.set_text('Supports for (1.8, 0)')
+            ax3.set_xlabel("Support Value")
 
-
-            axs[2].hist2d(x=Z_output_pos_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
-            axs[2].get_yaxis().set_ticks([])
+            fig.colorbar(h[3], cax=grid.cbar_axes[0], orientation='vertical')
 
             #axs[0].colorbar()
             #plt.yticks([])
             #plt.show()
             #plt.plot(Z_output_zeros.squeeze())
+            #plt.xlabel("Support Value")
+
             plt.savefig("support_locations", bbox_inches='tight', format='pdf')
             #plt.show()
             Z = Z.mean(axis=1)
