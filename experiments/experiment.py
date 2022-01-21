@@ -289,7 +289,7 @@ if __name__ == "__main__":
         test_env = StochasticRegression(episode_length=200)
         params['env_name'] = "demo_regression"
         params['gamma'] = 0
-        params['max_step'] = 20000
+        params['max_step'] = 50000
         params["log"] = True
     else:
         env = gym.make(params["env_name"])

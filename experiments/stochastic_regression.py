@@ -72,8 +72,8 @@ class StochasticRegression(gym.Env):
 
     def plot(self, savefile):
         assert self.a_dim == 2
-        x = np.arange(-1.0, 1.0, 0.05)
-        y = np.arange(-1.0, 1.0, 0.05)
+        x = np.arange(-2.0, 2.0, 0.05)
+        y = np.arange(-2.0, 2.0, 0.05)
         X, Y = np.meshgrid(x, y)  # grid of point
         actions = np.concatenate([X.reshape(-1, 1), Y.reshape(-1, 1)], axis=1)
         states = np.zeros((actions.shape[0], self.s_dim))
@@ -129,10 +129,13 @@ class StochasticRegression(gym.Env):
         # fig.colorbar(surf1, shrink=0.5, aspect=5)
         # fig.colorbar(surf2, shrink=0.5, aspect=5)
         # fig.colorbar(surf3, shrink=0.5, aspect=5)
-
-        plt.savefig(title)
+       
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
+        ax.set_zlabel("Z")
+        
+        plt.title("Stochastic Reward Function")
+        plt.savefig(title, bbox_inches='tight', format='pdf')
         plt.close()
         #plt.show()
 
@@ -143,13 +146,43 @@ class StochasticRegression(gym.Env):
         y = np.arange(-2.0, 2.0, 0.05)
         X, Y = np.meshgrid(x, y)  # grid of point
         actions = np.concatenate([X.reshape(-1, 1), Y.reshape(-1, 1)], axis=1)
+        
+        # (0, 0)
+        zero_action = np.zeros((1, 2))
+        zero_action_torch = torch.Tensor(zero_action).to(Q_object.device)
+        
+        # (0, -1.8)
+        action_18 = np.array([-1.8, 0]).reshape(-1, 2)
+        action_18_torch = torch.Tensor(action_18).to(Q_object.device)
+        
         actions_torch = torch.Tensor(actions).to(Q_object.device)
         #states_torch = torch.zeros_like(actions_torch)
+        
         states_torch = torch.zeros(actions.shape[0], self.s_dim).to(Q_object.device)
+        states_torch_zeros = torch.zeros(zero_action_torch.shape[0], self.s_dim).to(Q_object.device)
+
         Z_torch = Q_object.forward(states_torch, actions_torch)
+        Z_output_zeros = Q_object.forward(states_torch_zeros, zero_action_torch).detach().cpu().numpy()
+        Z_output_18 = Q_object.forward(states_torch_zeros, action_18_torch).detach().cpu().numpy()
+        
         Z = Z_torch.detach().cpu().numpy()
 
         if (Q_object.params['distributional']):
+            print("mean of support distribution", Z_output_zeros.mean(axis=1))
+            Z_output_zeros = Z_output_zeros.squeeze()
+            Z_output_18 = Z_output_18.squeeze()
+
+            #plt.hist(x=Z_output_zeros, bins=200)
+            plt.figure(figsize=(5,2))
+            plt.xlabel("Support Value")
+            plt.title("Support Location Frequency")
+            plt.hist2d(x=Z_output_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            plt.colorbar()
+            plt.yticks([])
+            #plt.show()
+            #plt.plot(Z_output_zeros.squeeze())
+            plt.savefig("support_locations", bbox_inches='tight', format='pdf')
+            #plt.show()
             Z = Z.mean(axis=1)
         Z = Z.reshape(X.shape)
 
@@ -175,7 +208,7 @@ def load_and_plot_q(Q_object, saved_network_dir):
     Q_object.eval()
     Q_object.env.plot_agent(Q_object, "plotted_q_func.jpg")
 
-    Q_object.env.plot_reward_functions("reward_function.jpg")
+    Q_object.env.plot_reward_functions("reward_function")
 
 
 if __name__ == "__main__":
