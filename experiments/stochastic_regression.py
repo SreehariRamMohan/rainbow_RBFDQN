@@ -152,8 +152,11 @@ class StochasticRegression(gym.Env):
         zero_action_torch = torch.Tensor(zero_action).to(Q_object.device)
         
         # (0, -1.8)
-        action_18 = np.array([-1.8, 0]).reshape(-1, 2)
-        action_18_torch = torch.Tensor(action_18).to(Q_object.device)
+        action_neg_18 = np.array([-1.8, 0]).reshape(-1, 2)
+        action_neg_18_torch = torch.Tensor(action_neg_18).to(Q_object.device)
+
+        action_pos_18 = np.array([1.8, 0]).reshape(-1, 2)
+        action_pos_18_torch = torch.Tensor(action_pos_18).to(Q_object.device)
         
         actions_torch = torch.Tensor(actions).to(Q_object.device)
         #states_torch = torch.zeros_like(actions_torch)
@@ -163,22 +166,38 @@ class StochasticRegression(gym.Env):
 
         Z_torch = Q_object.forward(states_torch, actions_torch)
         Z_output_zeros = Q_object.forward(states_torch_zeros, zero_action_torch).detach().cpu().numpy()
-        Z_output_18 = Q_object.forward(states_torch_zeros, action_18_torch).detach().cpu().numpy()
+        Z_output_neg_18 = Q_object.forward(states_torch_zeros, action_neg_18_torch).detach().cpu().numpy()
+        Z_output_pos_18 = Q_object.forward(states_torch_zeros, action_pos_18_torch).detach().cpu().numpy()
         
         Z = Z_torch.detach().cpu().numpy()
 
         if (Q_object.params['distributional']):
             print("mean of support distribution", Z_output_zeros.mean(axis=1))
             Z_output_zeros = Z_output_zeros.squeeze()
-            Z_output_18 = Z_output_18.squeeze()
+            Z_output_neg_18 = Z_output_neg_18.squeeze()
+            Z_output_pos_18 = Z_output_pos_18.squeeze()
 
             #plt.hist(x=Z_output_zeros, bins=200)
             plt.figure(figsize=(5,2))
             plt.xlabel("Support Value")
             plt.title("Support Location Frequency")
-            plt.hist2d(x=Z_output_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
-            plt.colorbar()
-            plt.yticks([])
+
+            fig, axs = plt.subplots(3)
+            fig.suptitle('Support location' )
+            fig.tight_layout()
+            axs[0].hist2d(x=Z_output_neg_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            axs[0].get_yaxis().set_ticks([])
+
+
+            axs[1].hist2d(x=Z_output_zeros, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            axs[1].get_yaxis().set_ticks([])
+
+
+            axs[2].hist2d(x=Z_output_pos_18, y=np.ones((200,)), cmap=plt.cm.jet, bins=(50, 1))
+            axs[2].get_yaxis().set_ticks([])
+
+            #axs[0].colorbar()
+            #plt.yticks([])
             #plt.show()
             #plt.plot(Z_output_zeros.squeeze())
             plt.savefig("support_locations", bbox_inches='tight', format='pdf')
