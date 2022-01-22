@@ -84,12 +84,12 @@ class StochasticRegression(gym.Env):
         surf = ax.plot_surface(X,
                                Y,
                                Z,
-                               cmap=cm.coolwarm,
+                               cmap=plt.cm.jet,
                                linewidth=0,
                                antialiased=False)
         fig.colorbar(surf, shrink=0.5, aspect=5)
-        plt.show()
-        #plt.savefig(savefile)
+        #plt.show()
+        plt.savefig(savefile)
         #plt.close()
 
     def plot_reward_functions(self, title):
@@ -97,46 +97,85 @@ class StochasticRegression(gym.Env):
         y = np.arange(-2.0, 2.0, 0.05)
         X, Y = np.meshgrid(x, y)  # grid of point
         
+
         f = np.sin(X**2 + Y**2)
         g = np.ones_like(X)*2
         h = np.sign(X)*(np.abs(X)/(10))**(1/3) + 1.5
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        fig.set_size_inches(18.5, 10.5)
+        # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        # fig.set_size_inches(18.5, 10.5)
 
-        
+        colormap = plt.cm.viridis
 
-        surf2 = ax.plot_surface(X,
+        fig = plt.figure()
+        fig.tight_layout()
+        # fig.set_size_inches(6, 4)
+        ax1 = fig.add_subplot(221, projection='3d')
+        ax1.title.set_text("$f(x, y) = sin(x^2 + y^2)$")
+        ax1.title.set_fontsize(20)
+        surf2 = ax1.plot_surface(X,
         Y,
-        g,
-        cmap="Blues",
+        f,
+        cmap=colormap,
         linewidth=0,
         antialiased=False)
 
-        surf3 = ax.plot_surface(X,
+        ax1.set_xlabel("X")
+        ax1.set_ylabel("Y")
+        ax1.set_zlabel("Z")
+
+        ax2 = fig.add_subplot(222, projection='3d')
+        ax2.title.set_text("$g(x, y) = 2$")
+        ax2.title.set_fontsize(20)
+        surf3 = ax2.plot_surface(X,
                                Y,
-                               h,
-                               cmap="Blues",
+                               g,
+                               cmap=colormap,
                                linewidth=0,
                                antialiased=False)
 
-        surf1 = ax.plot_surface(X,
+        ax2.set_xlabel("X")
+        ax2.set_ylabel("Y")
+        ax2.set_zlabel("Z")
+        
+        ax3 = fig.add_subplot(223, projection='3d')
+        ax3.title.set_text("$h(x, y) = (\dfrac{x}{10}) ^ \dfrac{1}{3} + 1.5$")
+        ax3.title.set_fontsize(20)
+        ax3.set_xlabel("X")
+        ax3.set_ylabel("Y")
+        ax3.set_zlabel("Z")
+        
+        surf1 = ax3.plot_surface(X,
                                Y,
-                               f,
-                               cmap="Reds",
+                               h,
+                               cmap=colormap,
                                linewidth=0,
                                antialiased=False)
+
+        ax4 = fig.add_subplot(224, projection='3d')
+        ax4.title.set_text("$r_{weighted}(x, y) = \dfrac{f}{3} + \dfrac{g}{3} + \dfrac{h}{3}$")
+        ax4.set_xlabel("X")
+        ax4.set_ylabel("Y")
+        ax4.set_zlabel("Z")
+        ax4.title.set_fontsize(20)
+        weighted_sum = (1/3)*f + (1/3)*g + (1/3)*h
+
+        surf_weighted = ax4.plot_surface(X,
+                               Y,
+                               weighted_sum,
+                               cmap=colormap,
+                               linewidth=0,
+                               antialiased=False)
+    
 
         # fig.colorbar(surf1, shrink=0.5, aspect=5)
         # fig.colorbar(surf2, shrink=0.5, aspect=5)
         # fig.colorbar(surf3, shrink=0.5, aspect=5)
        
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_zlabel("Z")
-        
-        plt.title("Stochastic Reward Function")
-        plt.savefig(title, bbox_inches='tight', format='pdf')
-        plt.close()
+        #plt.savefig(title, bbox_inches='tight', format='pdf')
+        # plt.suptitle("Stochastic Reward Function", fontsize=25)
+        plt.show()
+
+        #plt.close()
         #plt.show()
 
 
@@ -219,6 +258,7 @@ class StochasticRegression(gym.Env):
 
             plt.savefig("support_locations", bbox_inches='tight', format='pdf')
             #plt.show()
+            plt.close()
             Z = Z.mean(axis=1)
         Z = Z.reshape(X.shape)
 
@@ -233,7 +273,7 @@ class StochasticRegression(gym.Env):
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_zlabel("Z")
-        plt.show()
+        #plt.show()
         #plt.savefig(savefile)
         #plt.close()
 
