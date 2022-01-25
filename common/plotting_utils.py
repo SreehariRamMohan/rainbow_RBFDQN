@@ -68,7 +68,7 @@ def smoothen_data(scores, n=10):
     return smoothened_data
 
 
-def generate_plot(score_array, label, smoothen=False):
+def generate_plot(score_array, label, smoothen=False, experiment_name=None):
     if smoothen:
         score_array = smoothen_data(score_array, n=10)
     median, mean, top, bottom = get_plot_params(score_array)
@@ -85,9 +85,11 @@ def generate_plot(score_array, label, smoothen=False):
 
     x1 = list(range(len(mean)))
 
-    #x1 = [((i)*10*(100/91)) for i in x1]
+    if experiment_name in (["ant", "cheetah", "humanoid", "pendulum"]):
+        x1 = [((i)*(10)*(200/193)) for i in x1]
+    else:
+        x1 = [((i)*10*(100/91)) for i in x1]
 
-    x1 = [((i)*(10)*(200/193)) for i in x1]
 
     #x1 = [((i)*10) for i in x1]
 
@@ -100,15 +102,27 @@ def generate_plot(score_array, label, smoothen=False):
     
     #x2 = [((i)*10*(100/91)) for i in x2]
     
-    x2 = [((i)*(10)*(200/193)) for i in x2]
 
-    #x2 = [((i)*10) for i in x2]
+    if experiment_name in (["ant", "cheetah", "humanoid", "pendulum"]):
+        x2 = [((i)*(10)*(200/193)) for i in x2]
+    else:
+        x2 = [((i)*10) for i in x2]
+
      
     if label in color_legend_map:
         plt.fill_between(x2, top, bottom, alpha=0.2, color=color_legend_map[label])
     else:
         plt.fill_between(x2, top, bottom, alpha=0.2)
-    plt.xlim(0, 200)
+
+    if experiment_name in (["ant", "cheetah", "humanoid"]):
+        plt.xlim(0, 2000)
+    elif experiment_name in (["lunarlander"]):
+        plt.xlim(0, 200)
+    elif experiment_name in (["pendulum"]):
+        plt.xlim(0, 100)
+    elif experiment_name in (["bipedalwalker", "hopper"]):
+        plt.xlim(0, 1000)
+    
 
 def get_all_run_titles(experiment_name):
     parent = Path(experiment_name)

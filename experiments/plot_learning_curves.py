@@ -108,8 +108,10 @@ def make_graphs(experiment_name,
 
     plt.figure(figsize=(4,3))
 
+    exp_name = experiment_name[experiment_name.rindex("/")+1:]
+
     [
-        generate_plot(score_array, run_title, smoothen=smoothen)
+        generate_plot(score_array, run_title, smoothen=smoothen, experiment_name=exp_name.lower())
         for score_array, run_title in zip(score_arrays, good_run_titles)
     ]
 
@@ -123,9 +125,9 @@ def make_graphs(experiment_name,
 
     #plt.show()
     
-    plt.title("Lunar Lander")
+    plt.title(exp_name)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig("./lander.pdf", format="pdf", bbox_inches="tight")
+    plt.savefig(exp_name.lower()+".pdf", format="pdf", bbox_inches="tight")
 
 
 def main():
@@ -153,7 +155,7 @@ def main():
     # cumulative = True
     # all_seeds = True
 
-    experiment_name = "/home/sreehari/Downloads/ICML_2022_Results/LunarLander"
+    experiment_name = "/home/sreehari/Downloads/ICML_2022_Results/Pendulum"
     #experiment_name = "/home/sreehari/Downloads/Onager Sweeps Rainbow RBFDQN/Ant2/"
 
     run_titles = get_all_run_titles(experiment_name)

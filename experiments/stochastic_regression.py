@@ -173,6 +173,7 @@ class StochasticRegression(gym.Env):
        
         #plt.savefig(title, bbox_inches='tight', format='pdf')
         # plt.suptitle("Stochastic Reward Function", fontsize=25)
+        
         plt.show()
 
         #plt.close()

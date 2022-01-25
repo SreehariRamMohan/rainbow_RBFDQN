@@ -61,11 +61,11 @@ class buffer_class:
 			self.call_counter % (self.move_up_every*self.params['updates_per_episode']) == 0
 			and (self.call_counter != 0 or self.current_beta_index == -1)):
 				self.current_beta_index += 1
-				print("Switching to PER beta of:", self.beta_schedule[self.current_beta_index])
+				print("Switching to PER beta of:", self.beta_schedule[min(self.current_beta_index, len(self.beta_schedule) - 1)])
 				self.call_counter = 0 # prevent overflow
 
 			self.call_counter += 1
-			batch = self.storage.sample(batch_size, self.beta_schedule[self.current_beta_index])
+			batch = self.storage.sample(batch_size, self.beta_schedule[min(self.current_beta_index, len(self.beta_schedule) - 1)])
 
 			s_matrix = batch['obs']
 			a_matrix = batch['act']
