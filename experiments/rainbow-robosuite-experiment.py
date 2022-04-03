@@ -394,7 +394,7 @@ if __name__ == "__main__":
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
         "demo_regression":100,
-        "Door":200
+        "Door":1000
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
@@ -413,7 +413,7 @@ if __name__ == "__main__":
 
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
-            sp, r, done, _ = env.step(np.nan_to_num(numpy.array(a)))
+            sp, r, done, _ = env.step(np.nan_to_num(numpy.array(a), nan=0, posinf=0, neginf=0))
             
             t = t + 1
             rewards_per_typical_episode += r
@@ -451,7 +451,7 @@ if __name__ == "__main__":
                     s, G, done, t = env.reset(), 0, False, 0
                     while done == False:
                         a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test', steps=(steps+1))
-                        sp, r, done, _ = env.step(np.nan_to_num(numpy.array(a)))
+                        sp, r, done, _ = env.step(np.nan_to_num(numpy.array(a), nan=0, posinf=0, neginf=0))
                         s, G, t = sp, G + r, t + 1
 
                         if t == env._max_episode_steps:
@@ -474,7 +474,7 @@ if __name__ == "__main__":
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
                 meta_logger.append_datapoint("task_success_rate", numpy.mean(success_rate), write=True)
 
-            if (params["log"] and ((steps % (50*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
+            if (params["log"] and ((steps % (100*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
                 if not os.path.exists(path):
                     try:
