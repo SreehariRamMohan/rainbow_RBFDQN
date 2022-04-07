@@ -366,7 +366,8 @@ if __name__ == "__main__":
         "Ant-v3": 1000,
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
-        "demo_regression":100
+        "demo_regression":100,
+        "HumanoidStandup-v2":1000
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
