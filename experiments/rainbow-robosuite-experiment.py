@@ -325,7 +325,6 @@ if __name__ == "__main__":
 
     
     s0 = env.reset()
-    utils_for_q_learning.action_checker(env)
 
     if not params['distributional']:
         Q_object = Net(params,

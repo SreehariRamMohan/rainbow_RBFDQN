@@ -61,7 +61,7 @@ class Net(nn.Module):
         self.device = device
         self.params = params
         self.N = self.params['num_points']
-        self.max_a = self.env.action_space.high[0]
+        self.max_a = torch.from_numpy(self.env.action_space.high).to(self.device)
         self.beta = torch.Tensor([self.params['temperature']])
 
         if (self.params['random_betas']):
@@ -524,7 +524,7 @@ class Net(nn.Module):
         with torch.no_grad():
             y = r_matrix + self.params['gamma'] * (1 - done_matrix) * Q_star
         y_hat = self.forward(s_matrix, a_matrix)
-
+        
         update_params = {}
         average_q_star = torch.mean(Q_star, dim=0).item()
         average_q = torch.mean(y_hat, dim=0).item()
