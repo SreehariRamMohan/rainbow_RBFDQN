@@ -298,7 +298,7 @@ if __name__ == "__main__":
 
     # create environment instance
     controller_config = load_controller_config(default_controller="OSC_POSE")
-    controller_config["impedance_mode"] = "variable_kp"
+    controller_config["impedance_mode"] = "fixed" # 7 dim action space
     controller_config["delta_kp"] = True
 
     # set up env options 
