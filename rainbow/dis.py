@@ -69,7 +69,7 @@ class Net(nn.Module):
         self.device = device
         self.params = params
         self.N = self.params['num_points']
-        self.max_a = torch.from_numpy(self.env.action_space.high).to(self.device)
+        self.max_a = self.env.action_space.high[0]
         self.beta = self.params['temperature']
         self.N_QUANTILE = self.params['quantiles']
         self.Prob = torch.tensor([[[1.0/self.params['quantiles']]]]).to(self.device)

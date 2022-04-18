@@ -188,6 +188,11 @@ if __name__ == "__main__":
 
     parser.add_argument('-t', '--task',   required=True, type=str, help='path to environment task config file')
 
+    parser.add_argument("--grasp",
+                        type=utils.boolify,
+                        help="start with a grasp?",
+                        required=True)
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -291,22 +296,17 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("Running on the CPU")
 
-
-    # read task config
-    with open(args.task, 'r') as inf:
-        task_config = eval(inf.read())
-
     # create environment instance
     controller_config = load_controller_config(default_controller="OSC_POSE")
-    controller_config["impedance_mode"] = "fixed" # 7 dim action space
-    controller_config["delta_kp"] = True
+    controller_config["impedance_mode"] = "variable_kp" # 7 dim action space
+    controller_config["scale_stiffness"] = True
 
     # set up env options 
     options = {}
-    options["env_name"] = task_config["env_name"]
+    options["env_name"] = args.task
     options["robots"] = "Panda"
     options["controller_configs"] = controller_config
-    options["task_config"] = task_config  # this is the env configuration file
+    options["ee_fixed_to_handle"] = args.grasp  # this is the env configuration file
 
     # create and wrap env 
     raw_env = suite.make(
@@ -325,6 +325,7 @@ if __name__ == "__main__":
 
     
     s0 = env.reset()
+    utils_for_q_learning.action_checker(env)
 
     if not params['distributional']:
         Q_object = Net(params,
