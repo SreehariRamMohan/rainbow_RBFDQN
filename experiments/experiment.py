@@ -9,6 +9,10 @@ import os
 import datetime
 import sys
 sys.path.append("..")
+sys.path.append("../scripts/")
+sys.path.append("../../scripts")
+
+from MujocoGraspEnv import MujocoGraspEnv 
 
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
@@ -292,8 +296,8 @@ if __name__ == "__main__":
         params['max_step'] = 50000
         params["log"] = True
     else:
-        env = gym.make(params["env_name"])
-        test_env = gym.make(params["env_name"])
+        env = MujocoGraspEnv("door", False) #gym.make(params["env_name"])
+        test_env = MujocoGraspEnv("door", False) # gym.make(params["env_name"])
 
     params['env'] = env
 
@@ -367,7 +371,8 @@ if __name__ == "__main__":
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
         "demo_regression":100,
-        "HumanoidStandup-v2":1000
+        "HumanoidStandup-v2":1000,
+        "Door":1000
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
@@ -380,13 +385,14 @@ if __name__ == "__main__":
 
     while (steps <  params['max_step']):
 
-        if (steps%100000 == 0):
+        if (steps%100 == 0):
             print("step {}".format(steps))
 
         s, done, t = env.reset(), False, 0
         
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
+            a = env.action_space.sample()
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             rewards_per_typical_episode += r
@@ -414,7 +420,7 @@ if __name__ == "__main__":
 
             if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
                 temp = []
-                for _ in range(10):
+                for _ in range(1):
                     s, G, done, t = test_env.reset(), 0, False, 0
                     while done == False:
                         a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test', steps=(steps+1))
@@ -430,7 +436,7 @@ if __name__ == "__main__":
                 utils_for_q_learning.save(G_li, loss_li, params, "rbf")
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
 
-            if (params["log"] and ((steps % (50*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
+            if (params["log"] and ((steps % (1*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
                 if not os.path.exists(path):
                     try:
@@ -439,11 +445,10 @@ if __name__ == "__main__":
                         print("Creation of the directory %s failed" % path)
                     else:
                         print("Successfully created the directory %s " % path)
-                torch.save(Q_object.state_dict(), os.path.join(path, "step_" + str(steps) + "_seed_" + str(args.seed)))
-                torch.save(Q_object_target.state_dict(), os.path.join(path, "target_step_" + str(steps) + "_seed_" + str(args.seed)))
+                torch.save(Q_object.state_dict(), os.path.join(path, "saved_model_" + str(args.seed)))
+                torch.save(Q_object_target.state_dict(), os.path.join(path, "saved_model_target_" + str(args.seed)))
 
             steps += 1
-
 
         # notify n-step that the episode has ended. 
         if (params['nstep']):
