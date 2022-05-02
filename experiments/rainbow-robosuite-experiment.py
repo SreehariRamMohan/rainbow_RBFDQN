@@ -32,7 +32,7 @@ from stable_baselines3.common.monitor import Monitor
 from stable_baselines3 import PPO
 from baselines_robosuite.baselines_wrapper import BaselinesWrapper, SaveOnBestTrainingRewardCallback
 
-RENDER = False
+RENDER = True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -320,10 +320,7 @@ if __name__ == "__main__":
     # env = Monitor(env, params["full_experiment_file_path"], info_keywords=("success",))
     env.set_render(RENDER)
 
-    # seed 
-    utils_for_q_learning.set_random_seed({"seed_number" : args.seed, "env" : env})
-
-    
+    utils_for_q_learning.set_random_seed({"seed_number" : args.seed, "env" : env}) 
     s0 = env.reset()
     utils_for_q_learning.action_checker(env)
 
@@ -394,7 +391,8 @@ if __name__ == "__main__":
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
         "demo_regression":100,
-        "Door":1000
+        "Door":1000,
+        "Drawer":1000
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]

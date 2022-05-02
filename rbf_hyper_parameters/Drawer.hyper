@@ -1,4 +1,4 @@
-env_name,Door,string
+env_name,Drawer,string
 max_episode,1000,integer
 max_step,200000,integer
 num_layers,3,integer
