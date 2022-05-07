@@ -185,6 +185,18 @@ if __name__ == "__main__":
                         required=False,
                         default=False)
 
+    parser.add_argument("--task",
+                    required=True,
+                    help="door, switch",
+                    type=str,
+                    default="door")  # OpenAI gym environment name
+
+    parser.add_argument("--reward_sparse",
+                        required=True,
+                        help="is the reward sparse?",
+                        type=utils.boolify,
+                        default=True) 
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -296,8 +308,9 @@ if __name__ == "__main__":
         params['max_step'] = 50000
         params["log"] = True
     else:
-        env = MujocoGraspEnv("door", False) #gym.make(params["env_name"])
-        test_env = MujocoGraspEnv("door", False) # gym.make(params["env_name"])
+        print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse)
+        env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) #gym.make(params["env_name"])
+        test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) # gym.make(params["env_name"])
 
     params['env'] = env
 
