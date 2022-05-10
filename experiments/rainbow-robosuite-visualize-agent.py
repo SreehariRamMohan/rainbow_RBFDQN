@@ -1,30 +1,37 @@
-"""
-This is our run file for all Rainbow RBFDQN experiments.
-"""
-"""
-This is our run file for all Rainbow RBFDQN experiments.
-"""
 import argparse
+import logging
 import os
 import datetime
 import sys
 sys.path.append("..")
-sys.path.append("../scripts/")
+sys.path.append("../..")
+sys.path.append("../../../.")
 sys.path.append("../../scripts")
 
-from MujocoGraspEnv import MujocoGraspEnv 
+sys.path.append("../scripts/")
 
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
-
 from rainbow.RBFDQN_rainbow import Net
 from rainbow.dis import Net as DistributionalNet
-
 from stochastic_regression import StochasticRegression, load_and_plot_q
-
 import torch
+import numpy as np
 import numpy
 import gym
+from gym import spaces
+import time
+from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+from stable_baselines3.common.results_plotter import load_results, ts2xy
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.monitor import Monitor
+from stable_baselines3 import PPO
+
+from MujocoGraspEnv import MujocoGraspEnv 
+from stable_baselines3 import SAC
+
+
+RENDER = True
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -100,13 +107,6 @@ if __name__ == "__main__":
                         help=
                         """Specify where noisy layers should be inserted:
                         centroid, value, or both""")
-    
-    # By default this is max_steps / 2. 
-    # parser.add_argument("--noisy_episode_cutoff",
-    #                     type=int,
-    #                     default=1000,
-    #                     help=
-    #                     """Specify when noisy sampling should be cutoff""")
 
     parser.add_argument("--distributional",
                         type=utils.boolify,
@@ -197,11 +197,7 @@ if __name__ == "__main__":
                         type=utils.boolify,
                         default=True) 
 
-    parser.add_argument("--gravity",
-                    required=False,
-                    help="no gravity",
-                    type=utils.boolify,
-                    default=True) 
+    parser.add_argument("--SAC", action="store_true")
 
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
@@ -306,16 +302,15 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("Running on the CPU")
 
+    print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse)
+    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) #gym.make(params["env_name"])
+    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) # gym.make(params["env_name"])
 
-    print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
-    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
-    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
+    # seed 
+    utils_for_q_learning.set_random_seed({"seed_number" : args.seed, "env" : env})
 
-    params['env'] = env
-
-    utils_for_q_learning.set_random_seed(params)
+    
     s0 = env.reset()
-    utils_for_q_learning.action_checker(env)
 
     if not params['distributional']:
         Q_object = Net(params,
@@ -340,17 +335,31 @@ if __name__ == "__main__":
                                             action_size=len(env.action_space.low),
                                             device=device)
 
-    Q_object_target.eval()
+    # here please fill in the main directory for your stored model
+    # step_400000_seed_2_door_dense
+    # door_sparse_saved_model_0
+    # step_1100000_seed_2_switch_dense
+    
+    if not args.SAC:
+        saved_network_dir = "/home/sreehari/Downloads/rainbow_door_step_600000_seed_2_dense"
+        # specify the model that will actually interact with the environment.
+        Q_object.load_state_dict(torch.load(saved_network_dir))
+        Q_object.eval()
+        Q_object_target.eval()
+        utils_for_q_learning.sync_networks(target=Q_object_target,
+                                        online=Q_object,
+                                        alpha=params['target_network_learning_rate'],
+                                        copy=True)
 
-    utils_for_q_learning.sync_networks(target=Q_object_target,
-                                       online=Q_object,
-                                       alpha=params['target_network_learning_rate'],
-                                       copy=True)
+        if args.demo_regression and args.load_model != "":
+            load_and_plot_q(Q_object, args.load_model)
+            exit(1)
 
-    if args.demo_regression and args.load_model != "":
-        load_and_plot_q(Q_object, args.load_model)
-        exit(1)
+    # switch_dense_sac.zip
+    
+    model = SAC.load("/home/sreehari/Downloads/sac_door_dense.zip")
 
+    
     print(f"Q_object: {Q_object}")
     print(f"Q_target: {Q_object_target}")
 
@@ -364,6 +373,7 @@ if __name__ == "__main__":
     meta_logger.add_field("average_loss", logging_filename)
     meta_logger.add_field("average_q", logging_filename)
     meta_logger.add_field("average_q_star", logging_filename)
+    meta_logger.add_field("task_success_rate", logging_filename)
 
     G_li = []
     loss_li = []
@@ -383,7 +393,6 @@ if __name__ == "__main__":
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
         "demo_regression":100,
-        "HumanoidStandup-v2":1000,
         "Door":1000
     }
 
@@ -394,75 +403,40 @@ if __name__ == "__main__":
     rewards_per_typical_episode = 0
 
     loss = []
+    
+        # Logging with Meta Logger
 
-    while (steps <  params['max_step']):
+    meta_logger = MetaLogger(full_experiment_name)
+    logging_filename = f"seed_{args.seed}.pkl"
 
-        if (steps%100 == 0):
-            print("step {}".format(steps))
+    meta_logger.add_field("evaluation_rewards", logging_filename)
+    meta_logger.add_field("average_loss", logging_filename)
 
-        s, done, t = env.reset(), False, 0
+    G_li = []
+    loss_li = []
+    all_times_per_steps = []
+    all_times_per_updates = []
+
+    num_episodes = 5
+    num_success = 0
+
+    for j in range(num_episodes):
+        print("episode:", j)
+        obs = env.reset()
+        obs = numpy.array(obs).reshape(1, len(s0))
+        obs = torch.from_numpy(obs).float().to(device)
         
-        while not done:
-            a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
-            a = env.action_space.sample()
-            sp, r, done, _ = env.step(numpy.array(a))
-            t = t + 1
-            rewards_per_typical_episode += r
-            done_p = False if t == env._max_episode_steps else done
-            Q_object.buffer_object.append(s, a, r, done_p, sp)
-            s = sp
-
-            # we do 1 update to the Q network every update_frequency steps. 
-            if steps%params['update_frequency'] == 0:
-                # now update the Q network
-                temp, update_params = Q_object.update(Q_object_target)
-                loss.append(temp)
-            
-            if steps%steps_per_typical_episode == 0:
-                # clean up the buffer
-                loss_li.append(numpy.mean(loss))
-                meta_logger.append_datapoint("average_loss", numpy.mean(loss), write=True)
-
-                meta_logger.append_datapoint("episodic_rewards", rewards_per_typical_episode, write=True)
-                rewards_per_typical_episode = 0
-
-                meta_logger.append_datapoint("average_q", update_params['average_q'], write=True)
-                meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
-                loss = []
-
-            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
-                temp = []
-                for _ in range(1):
-                    s, G, done, t = test_env.reset(), 0, False, 0
-                    while done == False:
-                        a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test', steps=(steps+1))
-                        sp, r, done, _ = test_env.step(numpy.array(a))
-                        s, G, t = sp, G + r, t + 1
-                    temp.append(G)
-
-                print(
-                    "after {} steps, learned policy collects {} average returns".format(
-                        steps, numpy.mean(temp)))
-
-                G_li.append(numpy.mean(temp))
-                utils_for_q_learning.save(G_li, loss_li, params, "rbf")
-                meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
-
-            if (params["log"] and ((steps % (1*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
-                path = os.path.join(params["full_experiment_file_path"], "logs")
-                if not os.path.exists(path):
-                    try:
-                        os.makedirs(path, exist_ok=True)
-                    except OSError:
-                        print("Creation of the directory %s failed" % path)
-                    else:
-                        print("Successfully created the directory %s " % path)
-                torch.save(Q_object.state_dict(), os.path.join(path, "saved_model_" + str(args.seed)))
-                torch.save(Q_object_target.state_dict(), os.path.join(path, "saved_model_target_" + str(args.seed)))
-
-            steps += 1
-
-        # notify n-step that the episode has ended. 
-        if (params['nstep']):
-            Q_object.buffer_object.storage.on_episode_end()
-
+        for i in range(1000):
+            with torch.no_grad():
+                if args.SAC:
+                    action = model.predict(obs.cpu().numpy())[0].squeeze()
+                else:
+                    action = Q_object.get_best_qvalue_and_action(obs)[1].squeeze()
+                    action = action.cpu().numpy()
+            obs, reward, done, info = env.step(action)
+            obs = numpy.array(obs).reshape(1, len(s0))
+            obs = torch.from_numpy(obs).float().to(device)
+            print("timestep:",i , "getting reward:", reward)
+            if done:
+                num_success += 1
+                break
