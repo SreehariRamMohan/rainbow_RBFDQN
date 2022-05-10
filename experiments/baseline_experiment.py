@@ -57,8 +57,8 @@ parser.add_argument("--run_title",
                     required=True)
                     
 args, unknown = parser.parse_known_args()
-env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) 
-eval_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) 
+env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse) 
+eval_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse) 
 
 # The noise objects for DDPG
 n_actions = env.action_space.shape[-1]

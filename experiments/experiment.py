@@ -306,7 +306,6 @@ if __name__ == "__main__":
         device = torch.device("cpu")
         print("Running on the CPU")
 
-
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
     env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
     test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
@@ -364,6 +363,7 @@ if __name__ == "__main__":
     meta_logger.add_field("average_loss", logging_filename)
     meta_logger.add_field("average_q", logging_filename)
     meta_logger.add_field("average_q_star", logging_filename)
+    meta_logger.add_field("task_success_rate", logging_filename)
 
     G_li = []
     loss_li = []
@@ -384,7 +384,9 @@ if __name__ == "__main__":
         "Walker2d-v2":1000,
         "demo_regression":100,
         "HumanoidStandup-v2":1000,
-        "Door":1000
+        "Door":1000,
+        "Switch":1000, 
+        "Pitcher":1000
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
@@ -432,7 +434,10 @@ if __name__ == "__main__":
 
             if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
                 temp = []
-                for _ in range(1):
+
+                success_rate = []
+
+                for _ in range(10):
                     s, G, done, t = test_env.reset(), 0, False, 0
                     while done == False:
                         a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'test', steps=(steps+1))
@@ -440,15 +445,21 @@ if __name__ == "__main__":
                         s, G, t = sp, G + r, t + 1
                     temp.append(G)
 
+                    if env.check_task_success():
+                        success_rate.append(1)
+                    else:
+                        success_rate.append(0)
+
                 print(
-                    "after {} steps, learned policy collects {} average returns".format(
-                        steps, numpy.mean(temp)))
+                    "after {} steps, learned policy collects {} average returns with success rate {}".format(
+                        steps, numpy.mean(temp), numpy.mean(success_rate)))
 
                 G_li.append(numpy.mean(temp))
                 utils_for_q_learning.save(G_li, loss_li, params, "rbf")
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
+                meta_logger.append_datapoint("task_success_rate", numpy.mean(success_rate), write=True)
 
-            if (params["log"] and ((steps % (1*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
+            if (params["log"] and ((steps % (100*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
                 if not os.path.exists(path):
                     try:
@@ -457,8 +468,7 @@ if __name__ == "__main__":
                         print("Creation of the directory %s failed" % path)
                     else:
                         print("Successfully created the directory %s " % path)
-                torch.save(Q_object.state_dict(), os.path.join(path, "saved_model_" + str(args.seed)))
-                torch.save(Q_object_target.state_dict(), os.path.join(path, "saved_model_target_" + str(args.seed)))
+                torch.save(Q_object.state_dict(), os.path.join(path, "step_" + str(steps) + "_seed_" + str(args.seed)))
 
             steps += 1
 
