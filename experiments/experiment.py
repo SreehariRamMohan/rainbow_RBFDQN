@@ -11,6 +11,7 @@ import sys
 sys.path.append("..")
 sys.path.append("../scripts/")
 sys.path.append("../../scripts")
+sys.path.append("../../")
 
 from MujocoGraspEnv import MujocoGraspEnv 
 
@@ -203,6 +204,12 @@ if __name__ == "__main__":
                     type=utils.boolify,
                     default=True) 
 
+    parser.add_argument("--lock_gripper",
+                    required=False,
+                    help="should we lock the gripper during training?",
+                    type=utils.boolify,
+                    default=False) 
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -307,8 +314,8 @@ if __name__ == "__main__":
         print("Running on the CPU")
 
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
-    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
-    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity)
+    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
+    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
 
     params['env'] = env
 
@@ -384,9 +391,9 @@ if __name__ == "__main__":
         "Walker2d-v2":1000,
         "demo_regression":100,
         "HumanoidStandup-v2":1000,
-        "Door":1000,
-        "Switch":1000, 
-        "Pitcher":1000
+        "Door":50,
+        "Switch":50, 
+        "Pitcher":50
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]

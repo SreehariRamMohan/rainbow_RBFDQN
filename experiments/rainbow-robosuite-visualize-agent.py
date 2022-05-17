@@ -303,8 +303,8 @@ if __name__ == "__main__":
         print("Running on the CPU")
 
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse)
-    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) #gym.make(params["env_name"])
-    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse) # gym.make(params["env_name"])
+    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=True) #gym.make(params["env_name"])
+    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=True) # gym.make(params["env_name"])
 
     # seed 
     utils_for_q_learning.set_random_seed({"seed_number" : args.seed, "env" : env})
@@ -341,7 +341,7 @@ if __name__ == "__main__":
     # step_1100000_seed_2_switch_dense
     
     if not args.SAC:
-        saved_network_dir = "/home/sreehari/Downloads/rainbow_door_step_600000_seed_2_dense"
+        saved_network_dir = "/home/sreehari/Downloads/step_650000_seed_0_door_rainbow"
         # specify the model that will actually interact with the environment.
         Q_object.load_state_dict(torch.load(saved_network_dir))
         Q_object.eval()
@@ -357,7 +357,7 @@ if __name__ == "__main__":
 
     # switch_dense_sac.zip
     
-    model = SAC.load("/home/sreehari/Downloads/sac_door_dense.zip")
+    model = SAC.load("/home/sreehari/Downloads/sac_best_door.zip")
 
     
     print(f"Q_object: {Q_object}")
@@ -393,7 +393,8 @@ if __name__ == "__main__":
         "Humanoid-v2":1000,
         "Walker2d-v2":1000,
         "demo_regression":100,
-        "Door":1000
+        "Door":50,
+        "Switch":50
     }
 
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
@@ -417,7 +418,7 @@ if __name__ == "__main__":
     all_times_per_steps = []
     all_times_per_updates = []
 
-    num_episodes = 5
+    num_episodes = 20
     num_success = 0
 
     for j in range(num_episodes):
@@ -426,7 +427,7 @@ if __name__ == "__main__":
         obs = numpy.array(obs).reshape(1, len(s0))
         obs = torch.from_numpy(obs).float().to(device)
         
-        for i in range(1000):
+        for i in range(50):
             with torch.no_grad():
                 if args.SAC:
                     action = model.predict(obs.cpu().numpy())[0].squeeze()
