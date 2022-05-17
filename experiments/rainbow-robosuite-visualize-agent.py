@@ -341,7 +341,7 @@ if __name__ == "__main__":
     # step_1100000_seed_2_switch_dense
     
     if not args.SAC:
-        saved_network_dir = "/home/sreehari/Downloads/step_650000_seed_0_door_rainbow"
+        saved_network_dir = "/home/sreehari/Downloads/step_200000_seed_0_door"
         # specify the model that will actually interact with the environment.
         Q_object.load_state_dict(torch.load(saved_network_dir))
         Q_object.eval()

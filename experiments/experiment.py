@@ -314,8 +314,9 @@ if __name__ == "__main__":
         print("Running on the CPU")
 
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
-    env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
-    test_env = MujocoGraspEnv(args.task, True, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
+
+    env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
+    test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
 
     params['env'] = env
 
@@ -406,9 +407,6 @@ if __name__ == "__main__":
 
     while (steps <  params['max_step']):
 
-        if (steps%100 == 0):
-            print("step {}".format(steps))
-
         s, done, t = env.reset(), False, 0
         
         while not done:
@@ -439,7 +437,7 @@ if __name__ == "__main__":
                 meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
                 loss = []
 
-            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
+            if (steps%(10000) == 0) or (steps == params['max_step'] - 1):
                 temp = []
 
                 success_rate = []
@@ -466,7 +464,7 @@ if __name__ == "__main__":
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
                 meta_logger.append_datapoint("task_success_rate", numpy.mean(success_rate), write=True)
 
-            if (params["log"] and ((steps % (100*steps_per_typical_episode) == 0) or steps == (params['max_step'] - 1))):
+            if (params["log"] and ((steps % (50000) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
                 if not os.path.exists(path):
                     try:
@@ -479,6 +477,8 @@ if __name__ == "__main__":
 
             steps += 1
 
+            if (steps%1000 == 0):
+                print("step {}".format(steps))
         # notify n-step that the episode has ended. 
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()
