@@ -411,7 +411,7 @@ if __name__ == "__main__":
         
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
-            a = env.action_space.sample()
+            
             sp, r, done, _ = env.step(numpy.array(a))
             t = t + 1
             rewards_per_typical_episode += r
