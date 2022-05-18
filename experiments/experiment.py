@@ -210,6 +210,12 @@ if __name__ == "__main__":
                     type=utils.boolify,
                     default=False) 
 
+    parser.add_argument("--sample_method",
+                        required=False,
+                        help="random, prior, or value",
+                        type=str,
+                        default="random")
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -315,8 +321,10 @@ if __name__ == "__main__":
 
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
 
-    env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
-    test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper)
+    env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper, 
+                         sample_method=args.sample_method)
+    test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
+                              sample_method=args.sample_method)
 
     params['env'] = env
 
@@ -348,7 +356,13 @@ if __name__ == "__main__":
                                             device=device)
 
     Q_object_target.eval()
-
+    
+    # assign Q object to env for scoring grasps 
+    try:
+        env.set_q_function(Q_object)
+    except Exception as e:
+        print(e)
+    
     utils_for_q_learning.sync_networks(target=Q_object_target,
                                        online=Q_object,
                                        alpha=params['target_network_learning_rate'],
