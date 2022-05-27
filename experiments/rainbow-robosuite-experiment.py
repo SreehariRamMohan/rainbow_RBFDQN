@@ -440,7 +440,7 @@ if __name__ == "__main__":
                 meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
                 loss = []
 
-            if (steps%(10*steps_per_typical_episode) == 0) or (steps == params['max_step'] - 1):
+            if (steps%steps_per_typical_episode == 0) or (steps == params['max_step'] - 1):
                 temp = []
 
                 success_rate = []
