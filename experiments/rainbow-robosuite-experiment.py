@@ -31,8 +31,11 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3 import PPO
 from baselines_robosuite.baselines_wrapper import BaselinesWrapper, SaveOnBestTrainingRewardCallback
+from os import listdir
+from os.path import isfile, join
+import pickle
 
-RENDER = True
+RENDER = False
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -402,6 +405,31 @@ if __name__ == "__main__":
     rewards_per_typical_episode = 0
 
     loss = []
+
+    num_steps_bootstrap = 1000
+
+    #Prepopulate replay buffer
+    demo_path = "./demos/"+args.task
+
+    print("Bootstrapping!")
+    demo_files = [f for f in listdir(demo_path) if isfile(join(demo_path, f))]
+    for demo_file in demo_files:
+        full_demo_path  = demo_path + "/" + demo_file
+        demo_data = pickle.load(open(full_demo_path,"rb"))
+        for transition_tuple in demo_data:
+            s, a, r, done_p, sp = transition_tuple
+            Q_object.buffer_object_expert.append(s, a, r, done_p, sp)
+            if (params['nstep']) and done_p:
+                Q_object.buffer_object_expert.storage.on_episode_end()
+
+    #Update the qnetwork with the replay buffer
+    for cur_step in range(num_steps_bootstrap):
+        temp = Q_object.update_expert_loss(Q_object_target)
+        print("Bootstrap loss:",temp)
+    print("Bootstrapping done!")
+
+
+
     while (steps <  params['max_step']):
 
         if (steps%100000 == 0):
@@ -425,7 +453,7 @@ if __name__ == "__main__":
             # we do 1 update to the Q network every update_frequency steps. 
             if steps%params['update_frequency'] == 0:
                 # now update the Q network
-                temp, update_params = Q_object.update(Q_object_target)
+                temp, update_params = Q_object.update_all_losses(Q_object_target)
                 loss.append(temp)
             
             if steps%steps_per_typical_episode == 0:

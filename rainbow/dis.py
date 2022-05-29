@@ -80,6 +80,12 @@ class Net(nn.Module):
             seed_number=self.params['seed_number'],
             params=params)
 
+        self.buffer_object_expert = buffer_class.buffer_class(
+            max_length=self.params['max_buffer_size'],
+            env=self.env,
+            seed_number=self.params['seed_number'],
+            params=params)
+
         self.state_size, self.action_size = state_size, action_size
 
         def layer_norm(s):
@@ -450,7 +456,57 @@ class Net(nn.Module):
             reset_module_noise(self.value_module)
         reset_module_noise(self.location_module)
 
-    def update(self, target_Q):
+    def get_expert_loss(self, target_Q):      
+        batch_size = self.params['batch_size']
+
+        if self.params['per']:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object_expert.sample(self.params['batch_size'])
+        else:
+            s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object_expert.sample(self.params['batch_size'])
+
+        r_matrix = numpy.clip(r_matrix, a_min=-self.params['reward_clip'], a_max=self.params['reward_clip'])
+
+        s_matrix = torch.from_numpy(s_matrix).float().to(self.device)
+        a_matrix = torch.from_numpy(a_matrix).float().to(self.device)
+        r_matrix = torch.from_numpy(r_matrix).float().to(self.device)
+        done_matrix = torch.from_numpy(done_matrix).float().to(self.device)
+        sp_matrix = torch.from_numpy(sp_matrix).float().to(self.device)
+
+        # Construct the target
+        with torch.no_grad():
+            if self.params['double']:
+                # check this part for sure
+                _, a_, _ = self.get_best_qvalue_and_action(sp_matrix)
+                target_centroids, target_quantiles = target_Q.get_centroid_locations(sp_matrix), target_Q.get_centroid_quantiles(sp_matrix)
+                weights = rbf_function_on_action(target_centroids, a_, self.beta)
+                next_quantiles = torch.bmm(weights.unsqueeze(1), target_quantiles).squeeze()
+            else:
+                _, _, next_quantiles = target_Q.get_best_qvalue_and_action(sp_matrix)
+            
+            y = (r_matrix + self.params['gamma'] * (1 - done_matrix) * next_quantiles).unsqueeze(1)
+        # Construct the prediction for the current state and action
+        y_hat = self.forward(s_matrix, a_matrix).unsqueeze(2)
+
+        # Redefine the loss
+        u = y - y_hat
+        QUANTS = np.linspace(0.0, 1.0, self.params['quantiles'] + 1)[1:] # Pick up the probability quantiles
+        QUANTS_TARGET = (np.linspace(0.0, 1.0, self.params['quantiles'] + 1)[:-1] + QUANTS)/2
+        tau = torch.FloatTensor(QUANTS_TARGET).view(1, -1, 1).to(self.device)
+        weights = torch.abs(tau - u.le(0.).float())
+        # loss = self.criterion(y_hat, y.type(torch.float32))
+        criterion_loss = self.criteria(y_hat, y,  reduction='none')
+        loss = torch.mean(weights * criterion_loss)
+
+        if self.params['per']:
+            td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
+            self.buffer_object_expert.storage.update_priorities(indexes, td_error)
+        if self.params['noisy_layers']:
+            self.reset_noise()
+            target_Q.reset_noise()
+
+        return loss
+
+    def get_non_expert_loss(self, target_Q):
         if len(self.buffer_object) < self.params['batch_size']:
             update_param = {}
             update_param['average_q'] = 0
@@ -496,6 +552,20 @@ class Net(nn.Module):
         # loss = self.criterion(y_hat, y.type(torch.float32))
         criterion_loss = self.criteria(y_hat, y,  reduction='none')
         loss = torch.mean(weights * criterion_loss)
+
+        if self.params['per']:
+            td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
+            self.buffer_object.storage.update_priorities(indexes, td_error)
+        if self.params['noisy_layers']:
+            self.reset_noise()
+            target_Q.reset_noise()
+
+        return loss, None
+
+    def update_expert_loss(self, target_Q):
+        expert_loss = self.get_expert_loss(target_Q)
+        loss = expert_loss
+
         self.zero_grad()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.value_module.parameters(),0.1)
@@ -508,12 +578,32 @@ class Net(nn.Module):
             alpha=self.params['target_network_learning_rate'],
             copy=False)
 
-        if self.params['per']:
-            td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
-            self.buffer_object.storage.update_priorities(indexes, td_error)
-        if self.params['noisy_layers']:
-            self.reset_noise()
-            target_Q.reset_noise()
+
+        update_param = {}
+        update_param['average_q'] = 0
+        update_param['average_q_star'] = 0
+
+        return loss.cpu().data.numpy()
+
+
+    def update_all_losses(self, target_Q):
+        non_expert_loss, _ = self.get_non_expert_loss(target_Q)
+        expert_loss = self.get_expert_loss(target_Q)
+ 
+        loss = expert_loss + non_expert_loss
+
+        self.zero_grad()
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.value_module.parameters(),0.1)
+        torch.nn.utils.clip_grad_norm_(self.location_module.parameters(), 0.1)
+        self.optimizer.step()
+        self.zero_grad()
+        utils_for_q_learning.sync_networks(
+            target=target_Q,
+            online=self,
+            alpha=self.params['target_network_learning_rate'],
+            copy=False)
+
 
         update_param = {}
         update_param['average_q'] = 0
