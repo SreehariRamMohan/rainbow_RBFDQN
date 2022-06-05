@@ -216,6 +216,12 @@ if __name__ == "__main__":
                         type=str,
                         default="random")
 
+    parser.add_argument("--state_space_type",
+                        required=False,
+                        help="friendly, pure",
+                        type=str,
+                        default="friendly")
+
     args, unknown = parser.parse_known_args()
     other_args = {(utils.remove_prefix(key, '--'), val)
                   for (key, val) in zip(unknown[::2], unknown[1::2])}
@@ -322,9 +328,9 @@ if __name__ == "__main__":
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
 
     env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper, 
-                         sample_method=args.sample_method)
+                         sample_method=args.sample_method, state_space=args.state_space_type)
     test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
-                              sample_method=args.sample_method)
+                              sample_method=args.sample_method, state_space=args.state_space_type)
 
     params['env'] = env
 
