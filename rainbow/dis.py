@@ -78,7 +78,8 @@ class Net(nn.Module):
             max_length=self.params['max_buffer_size'],
             env=self.env,
             seed_number=self.params['seed_number'],
-            params=params)
+            params=params, 
+            state_size=(state_size,))
 
         self.state_size, self.action_size = state_size, action_size
 
@@ -96,11 +97,11 @@ class Net(nn.Module):
 
         ## Control for enable / disable of noisy_layers in value module vs centroid module
         old_noisy_value = self.params['noisy_layers']
-        if self.params['noisy_where'] == 'centroid':
+        if "noisy_where" in self.params and self.params['noisy_where'] == 'centroid':
             ## Disable noisy nets for value network
             self.params['noisy_layers'] = False
             
-        if self.params['dueling']:
+        if "dueling" in self.params and self.params['dueling']:
             # add an extra output param to the value_module which will be the "base" support value. 
             # all the other supports are offset from this one value. 
             self.value_module = nn.Sequential(
@@ -145,7 +146,7 @@ class Net(nn.Module):
          ## Control for enable / disable of noisy_layers in value module vs centroid module
         self.params['noisy_layers'] = old_noisy_value
         old_noisy_value = self.params['noisy_layers']
-        if self.params['noisy_where'] == 'value':
+        if "noisy_where" in self.params and self.params['noisy_where'] == 'value':
             ## Disable noisy nets for centroid network
             self.params['noisy_layers'] = False
         
@@ -182,11 +183,11 @@ class Net(nn.Module):
         torch.nn.init.xavier_uniform_(self.location_module[0].weight)
         torch.nn.init.zeros_(self.location_module[0].bias)
 
-        if not self.params['noisy_layers']:
+        if "noisy_layers" in self.params and not self.params['noisy_layers']:
             self.location_module[3].weight.data.uniform_(-.1, .1)
             self.location_module[3].bias.data.uniform_(-1., 1.)
 
-        if self.params['dueling']:
+        if "dueling" in self.params and self.params['dueling']:
             self.params_dic = [
                 {
                     'params': self.value_module.parameters(),
@@ -459,7 +460,7 @@ class Net(nn.Module):
         
         batch_size = self.params['batch_size']
 
-        if self.params['per']:
+        if 'per' in self.params and self.params['per']:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix, weights, indexes = self.buffer_object.sample(self.params['batch_size'])
         else:
             s_matrix, a_matrix, r_matrix, done_matrix, sp_matrix = self.buffer_object.sample(self.params['batch_size'])
@@ -474,7 +475,7 @@ class Net(nn.Module):
 
         # Construct the target
         with torch.no_grad():
-            if self.params['double']:
+            if 'double' in self.params and self.params['double']:
                 # check this part for sure
                 _, a_, _ = self.get_best_qvalue_and_action(sp_matrix)
                 target_centroids, target_quantiles = target_Q.get_centroid_locations(sp_matrix), target_Q.get_centroid_quantiles(sp_matrix)
@@ -508,10 +509,10 @@ class Net(nn.Module):
             alpha=self.params['target_network_learning_rate'],
             copy=False)
 
-        if self.params['per']:
+        if 'per' in self.params and self.params['per']:
             td_error = torch.mean(weights*criterion_loss, dim=(1, 2)).detach().cpu().numpy()
             self.buffer_object.storage.update_priorities(indexes, td_error)
-        if self.params['noisy_layers']:
+        if 'noisy_layers' in self.params and self.params['noisy_layers']:
             self.reset_noise()
             target_Q.reset_noise()
 

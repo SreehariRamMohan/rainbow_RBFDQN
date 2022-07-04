@@ -4,8 +4,13 @@ import random
 
 
 class buffer_class:
-	def __init__(self, max_length, seed_number, env, params):
+	def __init__(self, max_length, seed_number, env, params, state_size):
 		env_dict = create_env_dict(env)
+
+		# hack for hrl maze since 2d goal is augmented to state 
+		env_dict['obs']['shape'] = state_size
+		env_dict['next_obs']['shape'] = state_size
+
 		self.before_add = create_before_add_func(env)
 		self.params = params
 
