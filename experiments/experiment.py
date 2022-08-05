@@ -8,10 +8,10 @@ import argparse
 import os
 import datetime
 import sys
-sys.path.append("..")
-sys.path.append("../scripts/")
-sys.path.append("../../scripts")
-sys.path.append("../../")
+sys.path.insert(1, os.path.join(sys.path[0], '..'))
+sys.path.insert(1, os.path.join(sys.path[0], '../scripts/'))
+sys.path.insert(1, os.path.join(sys.path[0], '../../GraspInitiation/scripts/'))
+sys.path.insert(1, os.path.join(sys.path[0], '../../GraspInitiation/'))
 
 from MujocoGraspEnv import MujocoGraspEnv 
 
