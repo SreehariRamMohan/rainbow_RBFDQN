@@ -392,6 +392,14 @@ if __name__ == "__main__":
     meta_logger.add_field("average_q", logging_filename)
     meta_logger.add_field("average_q_star", logging_filename)
     meta_logger.add_field("task_success_rate", logging_filename)
+    meta_logger.add_field("episodic_success_rate", logging_filename)
+
+    if args.task == "switch":
+        meta_logger.add_field("switch_state", logging_filename)
+    elif args.task == "door":
+        meta_logger.add_field("door_hinge_state", logging_filename)
+        meta_logger.add_field("door_latch_state", logging_filename)
+
 
     G_li = []
     loss_li = []
@@ -432,12 +440,22 @@ if __name__ == "__main__":
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
             
-            sp, r, done, _ = env.step(numpy.array(a))
+            sp, r, done, info = env.step(numpy.array(a))
             t = t + 1
             rewards_per_typical_episode += r
             done_p = False if t == env._max_episode_steps else done
             Q_object.buffer_object.append(s, a, r, done_p, sp)
             s = sp
+
+            if done:
+                # Episode has terminated, record final object state and task success
+                meta_logger.append_datapoint("episodic_success_rate", info["success"], write=True)
+
+                if args.task == "door":
+                    meta_logger.append_datapoint("door_hinge_state", info["door_hinge_state"], write=True)
+                    meta_logger.append_datapoint("door_latch_state", info["door_latch_state"], write=True)
+                elif args.task == "switch":
+                    meta_logger.append_datapoint("switch_state", info["switch_state"], write=True)
 
             # we do 1 update to the Q network every update_frequency steps. 
             if steps%params['update_frequency'] == 0:
@@ -471,9 +489,9 @@ if __name__ == "__main__":
                     temp.append(G)
 
                     if env.check_task_success():
-                        success_rate.append(1)
+                        success_rate.append(1.)
                     else:
-                        success_rate.append(0)
+                        success_rate.append(0.)
 
                 print(
                     "after {} steps, learned policy collects {} average returns with success rate {}".format(
