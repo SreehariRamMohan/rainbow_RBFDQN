@@ -1,6 +1,6 @@
 env_name,Door,string
 max_episode,1000,integer
-max_step,2000000,integer
+max_step,1500000,integer
 num_layers,3,integer
 layer_size,512,integer
 num_layers_action_side,1,integer
