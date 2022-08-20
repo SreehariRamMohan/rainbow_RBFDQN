@@ -393,6 +393,7 @@ if __name__ == "__main__":
     meta_logger.add_field("average_q_star", logging_filename)
     meta_logger.add_field("task_success_rate", logging_filename)
     meta_logger.add_field("episodic_success_rate", logging_filename)
+    meta_logger.add_field("grasp_index", logging_filename)
 
     if args.task == "switch":
         meta_logger.add_field("switch_state", logging_filename)
@@ -450,6 +451,7 @@ if __name__ == "__main__":
             if done:
                 # Episode has terminated, record final object state and task success
                 meta_logger.append_datapoint("episodic_success_rate", info["success"], write=True)
+                meta_logger.append_datapoint("grasp_index", info["grasp_index"], write=True)
 
                 if args.task == "door":
                     meta_logger.append_datapoint("door_hinge_state", info["door_hinge_state"], write=True)
@@ -475,7 +477,7 @@ if __name__ == "__main__":
                 meta_logger.append_datapoint("average_q_star", update_params['average_q_star'], write=True)
                 loss = []
 
-            if (steps%(10000) == 0) or (steps == params['max_step'] - 1):
+            '''if (steps%(10000) == 0) or (steps == params['max_step'] - 1):
                 temp = []
 
                 success_rate = []
@@ -501,6 +503,7 @@ if __name__ == "__main__":
                 utils_for_q_learning.save(G_li, loss_li, params, "rbf")
                 meta_logger.append_datapoint("evaluation_rewards", numpy.mean(temp), write=True)
                 meta_logger.append_datapoint("task_success_rate", numpy.mean(success_rate), write=True)
+            '''
 
             if (params["log"] and ((steps % (50000) == 0) or steps == (params['max_step'] - 1))):
                 path = os.path.join(params["full_experiment_file_path"], "logs")
