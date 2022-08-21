@@ -17,6 +17,7 @@ from MujocoGraspEnv import MujocoGraspEnv
 
 from common import utils, utils_for_q_learning, buffer_class
 from common.logging_utils import MetaLogger
+from common.mlp_classifier import BinaryMLPClassifier
 
 from rainbow.RBFDQN_rainbow import Net
 from rainbow.dis import Net as DistributionalNet
@@ -329,8 +330,8 @@ if __name__ == "__main__":
 
     env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper, 
                          sample_method=args.sample_method, state_space=args.state_space_type)
-    test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
-                              sample_method=args.sample_method, state_space=args.state_space_type)
+    '''test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
+                              sample_method=args.sample_method, state_space=args.state_space_type)'''
 
     params['env'] = env
 
@@ -433,11 +434,16 @@ if __name__ == "__main__":
     rewards_per_typical_episode = 0
 
     loss = []
+    # Used to train classifier when sample_method is classifier
+    task_success_history, grasp_index_history = [], []
 
     while (steps <  params['max_step']):
 
         s, done, t = env.reset(), False, 0
-        
+
+        classifier_training_examples = []
+        classifier_training_labels = []
+
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
             
@@ -449,6 +455,11 @@ if __name__ == "__main__":
             s = sp
 
             if done:
+                if args.sample_method == "classifier":
+                    # Used to train classifier when sample_method is classifier
+                    classifier_training_examples.append(env.cache_torch_state[int(info["grasp_index"])])
+                    classifier_training_labels.append(int(info["success"]))
+
                 # Episode has terminated, record final object state and task success
                 meta_logger.append_datapoint("episodic_success_rate", info["success"], write=True)
                 meta_logger.append_datapoint("grasp_index", info["grasp_index"], write=True)
@@ -524,3 +535,109 @@ if __name__ == "__main__":
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()
 
+        if args.sample_method == "classifier":
+
+            print("Now training classifier with", classifier_training_examples, classifier_training_labels)
+
+            # Compute updated weights
+            """ Get the value distribution for the input states. """
+            print("Raw state shape", env.cache_torch_state.shape)
+            states = env.cache_torch_state.to(Q_object.device)
+            print("State shape", states.shape)
+            actions = Q_object.get_best_qvalue_and_action(states)[1]
+            print("Action shape", actions.shape)
+            value_distribution = Q_object.forward(states, actions)
+            print("Value shape", value_distribution.shape)
+
+            sys.exit()
+
+            '''@staticmethod
+            def value2steps(value):
+                """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
+                def _clip(v):
+                    if isinstance(v, np.ndarray):
+                        v[v>0] = 0
+                        return v
+                    return v if v <= 0 else 0
+
+                gamma = .99
+                clipped_value = _clip(value)
+                numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
+                denominator = np.log(gamma)
+                return np.abs(numerator / denominator)
+
+            def _compute_weights_unbatched(self, states, labels, values):
+                n_states = states.shape[0]
+                weights = np.zeros((n_states,))
+                for i in range(n_states):
+                    label = labels[i]
+                    state_value = values[i]
+                    if label == 1:  # These signs are assuming that we are thresholding *steps*, not values.
+                        flip_mass = state_value[state_value > self.threshold].sum()
+                    else:
+                        flip_mass = state_value[state_value < self.threshold].sum()
+                    weights[i] = flip_mass / state_value.sum()
+                return weights
+
+             def get_weights(self, states, labels): 
+                """
+                Given state, threshold, value function, compute the flipping prob for each state
+                Return 1/flipping prob which is the weights
+                    The formula for weights is a little more complicated, see paper Akhil will send in 
+                    channel
+                Args:
+                  states (np.ndarray): num states, state_dim
+                  labels (np.ndarray): num states, 
+                """
+                states = states.to(self.device).to(torch.float32)
+                best_actions = self.critic_classifier.agent.actor.get_best_qvalue_and_action(states.to(torch.float32))[1]
+                best_actions = best_actions.to(self.device).to(torch.float32)
+                value_distribution = self.critic_classifier.agent.actor.forward(states, best_actions).cpu().numpy()
+
+                # We have to mmake sure that the distribution and threshold are in the same units
+                step_distribution = self.value2steps(value_distribution)
+                
+                # Determine the threshold. It has units of # steps.
+                self.threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
+                print(f"Set the threshold to {self.threshold}")
+
+                probabilities = self._compute_weights_unbatched(states, labels, step_distribution)
+                weights = 1. / (probabilities + 1e-1)
+                return weights
+
+            def get_sample_weights(self, plot=False):
+
+                pos_egs = flatten(self.positive_examples)
+                neg_egs = flatten(self.negative_examples)
+                examples = pos_egs + neg_egs
+
+                assigned_labels = np.concatenate((
+                    +1 * np.ones((len(pos_egs),)),
+                    -1 * np.ones((len(neg_egs),))
+                ))
+
+                # Extract what labels the current VF would have assigned
+                augmented_states = np.array([eg.info["augmented_state"] for eg in examples])
+
+                # Compute the weights based on the probability that the samples will flip
+                weights = self.get_weights(torch.from_numpy(augmented_states), assigned_labels)
+
+                return weights
+
+            X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
+            Y = np.concatenate((positive_labels, negative_labels))
+            W = get_sample_weights()
+
+            optimistic_clf = BinaryMLPClassifier
+
+            optimistic_clf.train(X, Y, W)
+
+            training_predictions = self.optimistic_classifier.predict(X)
+            positive_training_examples = X[training_predictions == 1]
+
+            if positive_training_examples.shape[0] > 0:
+                pessimistic_clf = BinaryMLPClassifier
+                self.pessimistic_classifier.fit(positive_training_examples)
+
+            # Set weights for agent to draw new examples
+            env.classifier_probs = clf.predict_proba(X)'''
