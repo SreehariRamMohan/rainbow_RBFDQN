@@ -441,10 +441,8 @@ def main():
 
     clf = None
     if args.sample_method == "classifier":
-        clf_shape = env.cache_torch_state.shape[1]
-        print(";;;;;;;;;;;Creating classifier with shape", clf_shape)
         clf = BinaryMLPClassifier(\
-            clf_shape, \
+            env.cache_torch_state.shape[1], \
             torch.device('cuda' if torch.cuda.is_available() else 'cpu'), \
             threshold=0.5, \
             batch_size=5)
@@ -552,7 +550,7 @@ def main():
 
             grasp_indices = classifier_training_dict.keys()
             # List of ints
-            classifier_training_labels = [classifier_training_dict[grasp_index] for grasp_index in grasp_indices]
+            classifier_training_labels = np.array([classifier_training_dict[grasp_index] for grasp_index in grasp_indices])
             if clf.should_train(classifier_training_labels):
                 # List of tensors of lists
                 #classifier_training_examples = env.cache_torch_state[grasp_indices]
