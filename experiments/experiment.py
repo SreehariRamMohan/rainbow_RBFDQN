@@ -540,7 +540,10 @@ def main():
 
             grasp_indices = classifier_training_dict.keys()
             # List of tensors of lists
-            classifier_training_examples = env.cache_torch_state[grasp_indices]
+            #classifier_training_examples = env.cache_torch_state[grasp_indices]
+
+            grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
+            classifier_training_examples = env.cache_torch_state.index_select(grasp_indices_tensor)
             print("Training exampels:", classifier_training_examples)
             print("Training exampels shape:", classifier_training_examples.shape)
             # List of ints
