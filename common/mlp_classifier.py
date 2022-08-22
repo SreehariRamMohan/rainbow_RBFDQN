@@ -149,7 +149,7 @@ class ClassifierDataset(Dataset):
 
         return self.states[i], self.labels[i]
 
-def main():
+def test_matt():
     import random
     num_ex = 10
     X_np = np.random.random((14, 41))
@@ -169,6 +169,3 @@ def main():
     from scipy.special import softmax
     probs = softmax(probs)
     print(np.random.choice(a=len(probs), p=probs))
-if __name__ == '__main__':
-    main()
-
