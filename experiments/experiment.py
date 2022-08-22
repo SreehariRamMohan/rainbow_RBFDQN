@@ -605,8 +605,8 @@ def main():
                 env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
 
 def _clip(v):
-    print("Clipping type", type(v), isinstance(v, np.ndarray))
-    if isinstance(v, np.ndarray):
+    print("Clipping type", type(v), isinstance(v, numpy.ndarray))
+    if isinstance(v, numpy.ndarray):
         v[v>0] = 0
         return v
     return v if v <= 0 else 0
@@ -615,13 +615,13 @@ def value2steps(value):
     """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
     gamma = .99
     clipped_value = _clip(value)
-    numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
-    denominator = np.log(gamma)
-    return np.abs(numerator / denominator)
+    numerator = numpy.log(1 + ((1-gamma) * numpy.abs(clipped_value)))
+    denominator = numpy.log(gamma)
+    return numpy.abs(numerator / denominator)
 
 def compute_weights_unbatched(states, labels, values, threshold):
     n_states = states.shape[0]
-    weights = np.zeros((n_states,))
+    weights = numpy.zeros((n_states,))
     for i in range(n_states):
         label = labels[i]
         state_value = values[i]
@@ -654,7 +654,7 @@ def get_weights(states, labels, Q_object):
     step_distribution = value2steps(value_distribution)
 
     # Determine the threshold. It has units of # steps.
-    threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
+    threshold = numpy.median(step_distribution)  # TODO: This should be a percentile based on class ratios
     print(f"Set the threshold to {threshold}")
 
     probabilities = compute_weights_unbatched(states, labels, step_distribution, threshold)
