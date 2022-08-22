@@ -626,7 +626,7 @@ def compute_weights_unbatched(states, labels, values, threshold):
         weights[i] = flip_mass / state_value.sum()
     return weights
 
- def get_weights(states, labels):
+def get_weights(states, labels):
     """
     Given state, threshold, value function, compute the flipping prob for each state
     Return 1/flipping prob which is the weights
