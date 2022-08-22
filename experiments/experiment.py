@@ -605,8 +605,7 @@ def main():
                 env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
 
 def _clip(v):
-    print("Clipping type", type(v), isinstance(v, numpy.ndarray))
-    if isinstance(v, numpy.ndarray):
+    if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
         v[v>0] = 0
         return v
     return v if v <= 0 else 0
