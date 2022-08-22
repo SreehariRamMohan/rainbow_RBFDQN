@@ -148,3 +148,20 @@ class ClassifierDataset(Dataset):
             return self.states[i], self.labels[i], self.weights[i]
 
         return self.states[i], self.labels[i]
+
+def main():
+    num_ex = 10
+    X_np = np.random.random((14, 41))
+    X = torch.from_numpy(X_np)
+    y = [random.choice([0, 1]) for i in range(X.shape[0])]
+    W = np.random.randint(0, 10, X_np.shape[0])
+
+    clf = BinaryMLPClassifier(\
+        X_np.shape[1], \
+        torch.device('cuda' if torch.cuda.is_available() else 'cpu'), \
+        threshold=0.5, \
+        batch_size=5)
+    clf.fit(X, y, W, n_epochs=10)
+    print("Prob": clf.predict_proba(X))
+if __name__ == '__main__':
+    main()
