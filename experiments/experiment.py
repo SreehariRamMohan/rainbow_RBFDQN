@@ -28,7 +28,7 @@ import torch
 import numpy
 import gym
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hyper_param_directory",
                         required=False,
@@ -102,8 +102,8 @@ if __name__ == "__main__":
                         help=
                         """Specify where noisy layers should be inserted:
                         centroid, value, or both""")
-    
-    # By default this is max_steps / 2. 
+
+    # By default this is max_steps / 2.
     # parser.add_argument("--noisy_episode_cutoff",
     #                     type=int,
     #                     default=1000,
@@ -181,9 +181,9 @@ if __name__ == "__main__":
     parser.add_argument("--demo_regression", type=utils.boolify, default=False, required=False)
     parser.add_argument("--load_model", type=str, default="", required=False)
 
-    # use randomly initialized betas for all centroids (fixed) throughout training. 
-    parser.add_argument("--random_betas", 
-                        type=utils.boolify, 
+    # use randomly initialized betas for all centroids (fixed) throughout training.
+    parser.add_argument("--random_betas",
+                        type=utils.boolify,
                         required=False,
                         default=False)
 
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     print("Noisy Layers Applied to: ", params['noisy_where'])
 
     utils.save_hyper_parameters(params, args.seed)
-    
+
     if torch.cuda.is_available():
         device = torch.device("cuda:" + str(args.which_gpu))
         print("Using GPU id {}".format(args.which_gpu))
@@ -328,7 +328,7 @@ if __name__ == "__main__":
 
     print("Training on:", args.task, "using sparse reward scheme?", args.reward_sparse, "training with gravity:", args.gravity)
 
-    env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper, 
+    env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
                          sample_method=args.sample_method, state_space=args.state_space_type)
     '''test_env = MujocoGraspEnv(args.task, False, reward_sparse=args.reward_sparse, gravity=args.gravity, lock_fingers_closed=args.lock_gripper,
                               sample_method=args.sample_method, state_space=args.state_space_type)'''
@@ -363,13 +363,13 @@ if __name__ == "__main__":
                                             device=device)
 
     Q_object_target.eval()
-    
-    # assign Q object to env for scoring grasps 
+
+    # assign Q object to env for scoring grasps
     try:
         env.set_q_function(Q_object)
     except Exception as e:
         print(e)
-    
+
     utils_for_q_learning.sync_networks(target=Q_object_target,
                                        online=Q_object,
                                        alpha=params['target_network_learning_rate'],
@@ -412,7 +412,7 @@ if __name__ == "__main__":
 
     # number of steps on average per episode
     env_name_to_steps = {
-        "Pendulum-v0": 200, 
+        "Pendulum-v0": 200,
         "LunarLanderContinuous-v2":200,
         "BipedalWalker-v3": 1600,
         "Hopper-v3": 1000,
@@ -423,7 +423,7 @@ if __name__ == "__main__":
         "demo_regression":100,
         "HumanoidStandup-v2":1000,
         "Door":50,
-        "Switch":50, 
+        "Switch":50,
         "Pitcher":50
     }
 
@@ -441,12 +441,12 @@ if __name__ == "__main__":
 
         s, done, t = env.reset(), False, 0
 
-        classifier_training_examples = []
-        classifier_training_labels = []
+        # Dictionary of labels, indexed by grasp index
+        classifier_training_dict = {}
 
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
-            
+
             sp, r, done, info = env.step(numpy.array(a))
             t = t + 1
             rewards_per_typical_episode += r
@@ -456,9 +456,10 @@ if __name__ == "__main__":
 
             if done:
                 if args.sample_method == "classifier":
-                    # Used to train classifier when sample_method is classifier
-                    classifier_training_examples.append(env.cache_torch_state[int(info["grasp_index"])])
-                    classifier_training_labels.append(int(info["success"]))
+                    grasp_index = int(info["grasp_index"])
+                    success_label = int(info["success"])
+                    # Dictionary of latest grasp success label for each grasp index
+                    classifier_training_dict[grasp_index] = success_label
 
                 # Episode has terminated, record final object state and task success
                 meta_logger.append_datapoint("episodic_success_rate", info["success"], write=True)
@@ -470,12 +471,12 @@ if __name__ == "__main__":
                 elif args.task == "switch":
                     meta_logger.append_datapoint("switch_state", info["switch_state"], write=True)
 
-            # we do 1 update to the Q network every update_frequency steps. 
+            # we do 1 update to the Q network every update_frequency steps.
             if steps%params['update_frequency'] == 0:
                 # now update the Q network
                 temp, update_params = Q_object.update(Q_object_target)
                 loss.append(temp)
-            
+
             if steps%steps_per_typical_episode == 0:
                 # clean up the buffer
                 loss_li.append(numpy.mean(loss))
@@ -531,81 +532,34 @@ if __name__ == "__main__":
 
             if (steps%1000 == 0):
                 print("step {}".format(steps))
-        # notify n-step that the episode has ended. 
+        # notify n-step that the episode has ended.
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()
 
         if args.sample_method == "classifier":
 
-            print("Now training classifier with", classifier_training_examples, classifier_training_labels)
+            grasp_indices = classifier_training_dict.keys()
+            # List of tensors of lists
+            classifier_training_examples = env.cache_torch_state[grasp_indices]
+            print("Training exampels:", classifier_training_examples)
+            print("Training exampels shape:", classifier_training_examples.shape)
+            # List of ints
+            classifier_training_labels = [classifier_training_dict[grasp_index] for grasp_index in grasp_indices]
 
-            # Compute updated weights
-            """ Get the value distribution for the input states. """
-            print("Raw state shape", env.cache_torch_state.shape)
-            states = env.cache_torch_state.to(Q_object.device)
-            print("State shape", states.shape)
-            actions = Q_object.get_best_qvalue_and_action(states)[1]
-            print("Action shape", actions.shape)
-            value_distribution = Q_object.forward(states, actions)
-            print("Value shape", value_distribution.shape)
+            '''# Convert dictionary mapping grasp indices to success labels to grasp states and success labels
+            classifier_training_examples = []
+            classifier_training_labels = []
+            for grasp_index in classifier_training_dict:
+                classifier_training_examples.append(env.cache_torch_state[grasp_index])
+                classifier_training_labels.append(classifier_training_dict[grasp_index])
+            print("First ex", classifier_training_examples[0])
+            print("First ex shape", classifier_training_examples[0].shape)
+            classifier_training_examples_tensor = torch.Tensor(len(classifier_training_examples), classifier_training_examples[0].shape[0])
+            torch.cat(classifier_training_examples, out=classifier_training_examples_tensor)
+            print("Combined tensor", classifier_training_examples_tensor)
+            print("Combined tensor shape", classifier_training_examples_tensor.shape)'''
 
-            sys.exit()
-
-            '''@staticmethod
-            def value2steps(value):
-                """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
-                def _clip(v):
-                    if isinstance(v, np.ndarray):
-                        v[v>0] = 0
-                        return v
-                    return v if v <= 0 else 0
-
-                gamma = .99
-                clipped_value = _clip(value)
-                numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
-                denominator = np.log(gamma)
-                return np.abs(numerator / denominator)
-
-            def _compute_weights_unbatched(self, states, labels, values):
-                n_states = states.shape[0]
-                weights = np.zeros((n_states,))
-                for i in range(n_states):
-                    label = labels[i]
-                    state_value = values[i]
-                    if label == 1:  # These signs are assuming that we are thresholding *steps*, not values.
-                        flip_mass = state_value[state_value > self.threshold].sum()
-                    else:
-                        flip_mass = state_value[state_value < self.threshold].sum()
-                    weights[i] = flip_mass / state_value.sum()
-                return weights
-
-             def get_weights(self, states, labels): 
-                """
-                Given state, threshold, value function, compute the flipping prob for each state
-                Return 1/flipping prob which is the weights
-                    The formula for weights is a little more complicated, see paper Akhil will send in 
-                    channel
-                Args:
-                  states (np.ndarray): num states, state_dim
-                  labels (np.ndarray): num states, 
-                """
-                states = states.to(self.device).to(torch.float32)
-                best_actions = self.critic_classifier.agent.actor.get_best_qvalue_and_action(states.to(torch.float32))[1]
-                best_actions = best_actions.to(self.device).to(torch.float32)
-                value_distribution = self.critic_classifier.agent.actor.forward(states, best_actions).cpu().numpy()
-
-                # We have to mmake sure that the distribution and threshold are in the same units
-                step_distribution = self.value2steps(value_distribution)
-                
-                # Determine the threshold. It has units of # steps.
-                self.threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
-                print(f"Set the threshold to {self.threshold}")
-
-                probabilities = self._compute_weights_unbatched(states, labels, step_distribution)
-                weights = 1. / (probabilities + 1e-1)
-                return weights
-
-            def get_sample_weights(self, plot=False):
+            '''def get_sample_weights():
 
                 pos_egs = flatten(self.positive_examples)
                 neg_egs = flatten(self.negative_examples)
@@ -622,22 +576,84 @@ if __name__ == "__main__":
                 # Compute the weights based on the probability that the samples will flip
                 weights = self.get_weights(torch.from_numpy(augmented_states), assigned_labels)
 
-                return weights
+                return weights'''
 
-            X = np.concatenate((positive_feature_matrix, negative_feature_matrix))
-            Y = np.concatenate((positive_labels, negative_labels))
-            W = get_sample_weights()
+
+            W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels)
+
+            print("Weights", W)
+            sys.exit()
 
             optimistic_clf = BinaryMLPClassifier
 
-            optimistic_clf.train(X, Y, W)
+            optimistic_clf.train(classifier_training_examples.to(optimistic_clf.device), classifier_training_labels, W)
 
-            training_predictions = self.optimistic_classifier.predict(X)
+            '''training_predictions = self.optimistic_classifier.predict(X)
             positive_training_examples = X[training_predictions == 1]
 
             if positive_training_examples.shape[0] > 0:
                 pessimistic_clf = BinaryMLPClassifier
-                self.pessimistic_classifier.fit(positive_training_examples)
+                self.pessimistic_classifier.fit(positive_training_examples)'''
 
             # Set weights for agent to draw new examples
-            env.classifier_probs = clf.predict_proba(X)'''
+            env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
+
+def _clip(v):
+    print("Clipping type", type(v), isinstance(v, np.ndarray))
+    if isinstance(v, np.ndarray):
+        v[v>0] = 0
+        return v
+    return v if v <= 0 else 0
+
+def value2steps(value):
+    """ Assuming -1 step reward, convert a value prediction to a n_step prediction. """
+    gamma = .99
+    clipped_value = _clip(value)
+    numerator = np.log(1 + ((1-gamma) * np.abs(clipped_value)))
+    denominator = np.log(gamma)
+    return np.abs(numerator / denominator)
+
+def compute_weights_unbatched(states, labels, values, threshold):
+    n_states = states.shape[0]
+    weights = np.zeros((n_states,))
+    for i in range(n_states):
+        label = labels[i]
+        state_value = values[i]
+        if label == 1:  # These signs are assuming that we are thresholding *steps*, not values.
+            flip_mass = state_value[state_value > threshold].sum()
+        else:
+            flip_mass = state_value[state_value < threshold].sum()
+        weights[i] = flip_mass / state_value.sum()
+    return weights
+
+ def get_weights(states, labels):
+    """
+    Given state, threshold, value function, compute the flipping prob for each state
+    Return 1/flipping prob which is the weights
+        The formula for weights is a little more complicated, see paper Akhil will send in
+        channel
+    Args:
+      states (torch tensor): num states, state_dim
+      labels (list[int]): num states
+    """
+    # Compute updated weights
+    """ Get the value distribution for the input states. """
+    # shape: (num grasps, 6)
+    print("Get weights received states of type", type(states))
+    actions = Q_object.get_best_qvalue_and_action(states)[1]
+    # shape: (num grasps, 200)
+    value_distribution = Q_object.forward(states, actions)
+
+    # We have to mmake sure that the distribution and threshold are in the same units
+    step_distribution = value2steps(value_distribution)
+
+    # Determine the threshold. It has units of # steps.
+    threshold = np.median(step_distribution)  # TODO: This should be a percentile based on class ratios
+    print(f"Set the threshold to {threshold}")
+
+    probabilities = compute_weights_unbatched(states, labels, step_distribution, threshold)
+    weights = 1. / (probabilities + 1e-1)
+    return weights
+
+if __name__ == '__main__':
+    main()
