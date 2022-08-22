@@ -647,7 +647,7 @@ def get_weights(states, labels, Q_object):
     print("Get weights received states of type", type(states))
     actions = Q_object.get_best_qvalue_and_action(states)[1]
     # shape: (num grasps, 200)
-    value_distribution = Q_object.forward(states, actions)
+    value_distribution = Q_object.forward(states, actions).cpu().numpy()
 
     # We have to mmake sure that the distribution and threshold are in the same units
     step_distribution = value2steps(value_distribution)
