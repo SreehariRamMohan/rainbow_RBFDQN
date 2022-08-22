@@ -582,24 +582,27 @@ def main():
                 return weights'''
 
 
-            W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels)
+            W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object)
 
             print("Weights", W)
+            print(W.shape, classifier_training_examples.shape)
             sys.exit()
 
-            optimistic_clf = BinaryMLPClassifier
+            optimistic_clf = BinaryMLPClassifier()
 
-            optimistic_clf.train(classifier_training_examples.to(optimistic_clf.device), classifier_training_labels, W)
+            # If there's enough data to train
+            if optimistic_clf.should_train(classifier_training_labels):
+                optimistic_clf.train(classifier_training_examples.to(optimistic_clf.device), classifier_training_labels, W)
 
-            '''training_predictions = self.optimistic_classifier.predict(X)
-            positive_training_examples = X[training_predictions == 1]
+                '''training_predictions = self.optimistic_classifier.predict(X)
+                positive_training_examples = X[training_predictions == 1]
 
-            if positive_training_examples.shape[0] > 0:
-                pessimistic_clf = BinaryMLPClassifier
-                self.pessimistic_classifier.fit(positive_training_examples)'''
+                if positive_training_examples.shape[0] > 0:
+                    pessimistic_clf = BinaryMLPClassifier
+                    self.pessimistic_classifier.fit(positive_training_examples)'''
 
-            # Set weights for agent to draw new examples
-            env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
+                # Set weights for agent to draw new examples
+                env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
 
 def _clip(v):
     print("Clipping type", type(v), isinstance(v, np.ndarray))
@@ -629,7 +632,7 @@ def compute_weights_unbatched(states, labels, values, threshold):
         weights[i] = flip_mass / state_value.sum()
     return weights
 
-def get_weights(states, labels):
+def get_weights(states, labels, Q_object):
     """
     Given state, threshold, value function, compute the flipping prob for each state
     Return 1/flipping prob which is the weights
