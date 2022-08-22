@@ -24,6 +24,8 @@ from rainbow.dis import Net as DistributionalNet
 
 from stochastic_regression import StochasticRegression, load_and_plot_q
 
+from scipy.special import softmax
+
 import torch
 import numpy
 import gym
@@ -437,6 +439,16 @@ def main():
     # Used to train classifier when sample_method is classifier
     task_success_history, grasp_index_history = [], []
 
+    clf = None
+    if args.sample_method == "classifier":
+        clf_shape = env.cache_torch_state.shape[1]
+        print(";;;;;;;;;;;Creating classifier with shape", clf_shape)
+        clf = BinaryMLPClassifier(\
+            clf_shape, \
+            torch.device('cuda' if torch.cuda.is_available() else 'cpu'), \
+            threshold=0.5, \
+            batch_size=5)
+
     while (steps <  params['max_step']):
 
         s, done, t = env.reset(), False, 0
@@ -457,7 +469,7 @@ def main():
             if done:
                 if args.sample_method == "classifier":
                     grasp_index = int(info["grasp_index"])
-                    success_label = int(info["success"])
+                    success_label = float(info["success"])
                     # Dictionary of latest grasp success label for each grasp index
                     classifier_training_dict[grasp_index] = success_label
 
@@ -539,70 +551,29 @@ def main():
         if args.sample_method == "classifier":
 
             grasp_indices = classifier_training_dict.keys()
-            # List of tensors of lists
-            #classifier_training_examples = env.cache_torch_state[grasp_indices]
-
-            grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
-            classifier_training_examples = env.cache_torch_state.index_select(0, grasp_indices_tensor)
-            print("Training exampels:", classifier_training_examples)
-            print("Training exampels shape:", classifier_training_examples.shape)
             # List of ints
             classifier_training_labels = [classifier_training_dict[grasp_index] for grasp_index in grasp_indices]
+            if clf.should_train(classifier_training_labels):
+                # List of tensors of lists
+                #classifier_training_examples = env.cache_torch_state[grasp_indices]
 
-            '''# Convert dictionary mapping grasp indices to success labels to grasp states and success labels
-            classifier_training_examples = []
-            classifier_training_labels = []
-            for grasp_index in classifier_training_dict:
-                classifier_training_examples.append(env.cache_torch_state[grasp_index])
-                classifier_training_labels.append(classifier_training_dict[grasp_index])
-            print("First ex", classifier_training_examples[0])
-            print("First ex shape", classifier_training_examples[0].shape)
-            classifier_training_examples_tensor = torch.Tensor(len(classifier_training_examples), classifier_training_examples[0].shape[0])
-            torch.cat(classifier_training_examples, out=classifier_training_examples_tensor)
-            print("Combined tensor", classifier_training_examples_tensor)
-            print("Combined tensor shape", classifier_training_examples_tensor.shape)'''
+                grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
+                classifier_training_examples = env.cache_torch_state.index_select(0, grasp_indices_tensor)
 
-            '''def get_sample_weights():
+                W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object)
 
-                pos_egs = flatten(self.positive_examples)
-                neg_egs = flatten(self.negative_examples)
-                examples = pos_egs + neg_egs
+                W = W.to(clf.device).float()
 
-                assigned_labels = np.concatenate((
-                    +1 * np.ones((len(pos_egs),)),
-                    -1 * np.ones((len(neg_egs),))
-                ))
+                print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
 
-                # Extract what labels the current VF would have assigned
-                augmented_states = np.array([eg.info["augmented_state"] for eg in examples])
-
-                # Compute the weights based on the probability that the samples will flip
-                weights = self.get_weights(torch.from_numpy(augmented_states), assigned_labels)
-
-                return weights'''
-
-
-            W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object)
-
-            print("Weights", W)
-            print(W.shape, classifier_training_examples.shape)
-            sys.exit()
-
-            optimistic_clf = BinaryMLPClassifier()
-
-            # If there's enough data to train
-            if optimistic_clf.should_train(classifier_training_labels):
-                optimistic_clf.train(classifier_training_examples.to(optimistic_clf.device), classifier_training_labels, W)
-
-                '''training_predictions = self.optimistic_classifier.predict(X)
-                positive_training_examples = X[training_predictions == 1]
-
-                if positive_training_examples.shape[0] > 0:
-                    pessimistic_clf = BinaryMLPClassifier
-                    self.pessimistic_classifier.fit(positive_training_examples)'''
+                clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, W, n_epochs=10)
 
                 # Set weights for agent to draw new examples
-                env.classifier_probs = optimistic_clf.predict_proba(env.cache_torch_state.to(optimistic_clf.device))
+                env.classifier_probs = clf.predict_proba(env.cache_torch_state.to(clf.device).float()).detach().cpu().numpy()
+                env.classifier_probs = env.classifier_probs.reshape((-1))
+                env.classifier_probs = softmax(env.classifier_probs)
+                print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
+                sys.exit()
 
 def _clip(v):
     if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
@@ -647,7 +618,7 @@ def get_weights(states, labels, Q_object):
     print("Get weights received states of type", type(states))
     actions = Q_object.get_best_qvalue_and_action(states)[1]
     # shape: (num grasps, 200)
-    value_distribution = Q_object.forward(states, actions).cpu().detach().numpy()
+    value_distribution = Q_object.forward(states, actions).detach().cpu().numpy()
 
     # We have to mmake sure that the distribution and threshold are in the same units
     step_distribution = value2steps(value_distribution)
