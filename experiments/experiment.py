@@ -558,9 +558,7 @@ def main():
                 grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
                 classifier_training_examples = env.cache_torch_state.index_select(0, grasp_indices_tensor)
 
-                W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object)
-
-                W = W.to(clf.device).float()
+                W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object).astype(float)
 
                 print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
 
@@ -571,6 +569,8 @@ def main():
                 env.classifier_probs = env.classifier_probs.reshape((-1))
                 env.classifier_probs = softmax(env.classifier_probs)
                 print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
+
+                sys.exit()
 
 def _clip(v):
     if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
