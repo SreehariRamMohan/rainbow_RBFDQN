@@ -567,6 +567,10 @@ def main():
                 # Set weights for agent to draw new examples
                 env.classifier_probs = clf.predict_proba(env.cache_torch_state.to(clf.device).float()).detach().cpu().numpy()
                 env.classifier_probs = env.classifier_probs.reshape((-1))
+                if (numpy.isnan(env.classifier_probs).any()):
+                    print("~~~~~Array contains nans, setting nan probs to 0")
+                    #env.classifier_probs = numpy.ones(env.classifier_probs.shape)
+                    env.classifier_probs[numpy.isnan(env.classifier_probs)] = 0
                 env.classifier_probs = softmax(env.classifier_probs)
                 print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
 
@@ -610,7 +614,6 @@ def get_weights(states, labels, Q_object):
     # Compute updated weights
     """ Get the value distribution for the input states. """
     # shape: (num grasps, 6)
-    print("Get weights received states of type", type(states))
     actions = Q_object.get_best_qvalue_and_action(states)[1]
     # shape: (num grasps, 200)
     value_distribution = Q_object.forward(states, actions).detach().cpu().numpy()
