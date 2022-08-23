@@ -571,7 +571,6 @@ def main():
                 env.classifier_probs = env.classifier_probs.reshape((-1))
                 env.classifier_probs = softmax(env.classifier_probs)
                 print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
-                sys.exit()
 
 def _clip(v):
     if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
