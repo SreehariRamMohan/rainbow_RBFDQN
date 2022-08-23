@@ -560,6 +560,8 @@ def main():
 
                 W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object).astype(float)
 
+                print(";;;;;;;;;;;Generated classifier weights", W)
+
                 print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
 
                 clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, W, n_epochs=10)
