@@ -447,12 +447,12 @@ def main():
             threshold=0.5, \
             batch_size=5)
 
+    # Dictionary of labels, indexed by grasp index
+    classifier_training_dict = {}
+
     while (steps <  params['max_step']):
 
         s, done, t = env.reset(), False, 0
-
-        # Dictionary of labels, indexed by grasp index
-        classifier_training_dict = {}
 
         while not done:
             a = Q_object.execute_policy(s, (steps + 1)/steps_per_typical_episode, 'train', steps=(steps+1))
