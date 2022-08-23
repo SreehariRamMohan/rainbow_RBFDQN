@@ -440,7 +440,7 @@ def main():
     task_success_history, grasp_index_history = [], []
 
     clf = None
-    if args.sample_method == "classifier":
+    if "classifier" in args.sample_method:
         clf = BinaryMLPClassifier(\
             env.cache_torch_state.shape[1], \
             torch.device('cuda' if torch.cuda.is_available() else 'cpu'), \
@@ -465,7 +465,7 @@ def main():
             s = sp
 
             if done:
-                if args.sample_method == "classifier":
+                if "classifier" in args.sample_method:
                     grasp_index = int(info["grasp_index"])
                     success_label = float(info["success"])
                     # Dictionary of latest grasp success label for each grasp index
@@ -546,7 +546,7 @@ def main():
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()
 
-        if args.sample_method == "classifier":
+        if "classifier" in args.sample_method:
 
             grasp_indices = classifier_training_dict.keys()
             # List of ints
@@ -558,13 +558,13 @@ def main():
                 grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
                 classifier_training_examples = env.cache_torch_state.index_select(0, grasp_indices_tensor)
 
-                W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object).astype(float)
-
-                print(";;;;;;;;;;;Generated classifier weights", W)
-
                 print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
-
-                clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, W, n_epochs=10)
+                if args.sample_method == "classifier_unweighted":
+                    clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, n_epochs=10)
+                else:
+                    W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object).astype(float)
+                    print(";;;;;;;;;;;Generated classifier weights", W)
+                    clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, W, n_epochs=10)
 
                 # Set weights for agent to draw new examples
                 env.classifier_probs = clf.predict_proba(env.cache_torch_state.to(clf.device).float()).detach().cpu().numpy()
