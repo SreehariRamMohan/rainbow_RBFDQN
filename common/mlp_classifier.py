@@ -105,7 +105,12 @@ class BinaryMLPClassifier:
                 continue
 
             logits = self.model(observations)
-            squeezed_logits = logits.squeeze()
+            if logits.size[0] != 1:
+                squeezed_logits = logits.squeeze()
+            else:
+                squeezed_logits = torch.reshape(logits, (1,))
+            print("!!!!! Observations:", observations)
+            print("!!!!! Labels:", labels)
             if logits is not None:
                 print("!!!!! Logits shape", logits.shape)
             if squeezed_logits is not None:
