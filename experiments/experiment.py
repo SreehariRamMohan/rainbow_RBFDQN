@@ -551,6 +551,7 @@ def main():
             grasp_indices = classifier_training_dict.keys()
             # List of ints
             classifier_training_labels = numpy.array([classifier_training_dict[grasp_index] for grasp_index in grasp_indices])
+            print(";;;;;;;;;;;Should train with {} positive and {} negative?".format((classifier_training_labels == 1).sum(), (classifier_training_labels == 0).sum()))
             if clf.should_train(classifier_training_labels):
                 # List of tensors of lists
                 #classifier_training_examples = env.cache_torch_state[grasp_indices]
