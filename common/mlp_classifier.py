@@ -105,7 +105,7 @@ class BinaryMLPClassifier:
                 continue
 
             logits = self.model(observations)
-            if logits.size[0] != 1:
+            if logits.shape[0] != 1:
                 squeezed_logits = logits.squeeze()
             else:
                 squeezed_logits = torch.reshape(logits, (1,))
