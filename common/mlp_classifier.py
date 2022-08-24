@@ -71,8 +71,8 @@ class BinaryMLPClassifier:
 
     def should_train(self, y):
         enough_data = len(y) > self.batch_size
-        has_positives = len(y[y == 1]) > 0
-        has_negatives = len(y[y != 1]) > 0
+        has_positives = len(y[y == 1]) >= 10
+        has_negatives = len(y[y != 1]) >= 10
         return enough_data and has_positives and has_negatives
 
     def fit(self, X, y, W=None, n_epochs=5):
