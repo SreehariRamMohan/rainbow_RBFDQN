@@ -578,7 +578,7 @@ def main():
                 print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
 
 def _clip(v):
-    if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
+    '''if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
         v[v>0] = 0
         return v
     return v if v <= 0 else 0
@@ -589,7 +589,7 @@ def value2steps(value):
     clipped_value = _clip(value)
     numerator = numpy.log(1 + ((1-gamma) * numpy.abs(clipped_value)))
     denominator = numpy.log(gamma)
-    return numpy.abs(numerator / denominator)
+    return numpy.abs(numerator / denominator)'''
 
 def compute_weights_unbatched(states, labels, values, threshold):
     n_states = states.shape[0]
@@ -598,9 +598,9 @@ def compute_weights_unbatched(states, labels, values, threshold):
         label = labels[i]
         state_value = values[i]
         if label == 1:  # These signs are assuming that we are thresholding *steps*, not values.
-            flip_mass = state_value[state_value > threshold].sum()
-        else:
             flip_mass = state_value[state_value < threshold].sum()
+        else:
+            flip_mass = state_value[state_value > threshold].sum()
         weights[i] = flip_mass / state_value.sum()
         print("^^^^^^flip_mass, state_value", flip_mass, state_value.sum(), weights[i])
     return weights
@@ -624,16 +624,16 @@ def get_weights(states, labels, Q_object):
     print("^^^^^^")
     print("^^^^^^VD", value_distribution)
 
-    # We have to mmake sure that the distribution and threshold are in the same units
+    '''# We have to mmake sure that the distribution and threshold are in the same units
     step_distribution = value2steps(value_distribution)
-    print("^^^^^^SD", step_distribution)
+    print("^^^^^^SD", step_distribution)'''
 
     # Determine the threshold. It has units of # steps.
-    threshold = numpy.median(step_distribution)  # TODO: This should be a percentile based on class ratios
+    threshold = numpy.median(value_distribution)  # TODO: This should be a percentile based on class ratios
     print(f"Set the threshold to {threshold}")
     print("^^^^^^Threshold", threshold)
 
-    probabilities = compute_weights_unbatched(states, labels, step_distribution, threshold)
+    probabilities = compute_weights_unbatched(states, labels, value_distribution, threshold)
     weights = 1. / (probabilities + 1e-1)
     print("^^^^^^Computed weights", weights)
     print("^^^^^^")
