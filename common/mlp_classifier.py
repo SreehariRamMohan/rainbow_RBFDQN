@@ -105,8 +105,16 @@ class BinaryMLPClassifier:
                 continue
 
             logits = self.model(observations)
-            print("!!!!!!!!", logits.shape, logits.squeeze().shape, labels.shape, pos_weight.shape, weights.shape)
-            loss = F.binary_cross_entropy_with_logits(logits.squeeze(),
+            squeezed_logits = logits.squeeze()
+            if logits is not None:
+                print("!!!!! Logits shape", logits.shape)
+            if squeezed_logits is not None:
+                print("!!!!! Squeezed logits shape", squeezed_logits.shape)
+            if pos_weight is not None:
+                print("!!!!! pos_weight shape", pos_weight.shape)
+            if weights is not None:
+                print("!!!!! weights shape", weights.shape)
+            loss = F.binary_cross_entropy_with_logits(squeezed_logits,
                                                       labels,
                                                       pos_weight=pos_weight,
                                                       weight=weights) 
