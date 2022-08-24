@@ -602,6 +602,7 @@ def compute_weights_unbatched(states, labels, values, threshold):
         else:
             flip_mass = state_value[state_value < threshold].sum()
         weights[i] = flip_mass / state_value.sum()
+        print("^^^^^^flip_mass, state_value", flip_mass, state_value.sum(), weights[i])
     return weights
 
 def get_weights(states, labels, Q_object):
@@ -620,16 +621,22 @@ def get_weights(states, labels, Q_object):
     actions = Q_object.get_best_qvalue_and_action(states)[1]
     # shape: (num grasps, 200)
     value_distribution = Q_object.forward(states, actions).detach().cpu().numpy()
+    print("^^^^^^")
+    print("^^^^^^VD", value_distribution)
 
     # We have to mmake sure that the distribution and threshold are in the same units
     step_distribution = value2steps(value_distribution)
+    print("^^^^^^SD", step_distribution)
 
     # Determine the threshold. It has units of # steps.
     threshold = numpy.median(step_distribution)  # TODO: This should be a percentile based on class ratios
     print(f"Set the threshold to {threshold}")
+    print("^^^^^^Threshold", threshold)
 
     probabilities = compute_weights_unbatched(states, labels, step_distribution, threshold)
     weights = 1. / (probabilities + 1e-1)
+    print("^^^^^^Computed weights", weights)
+    print("^^^^^^")
     return weights
 
 if __name__ == '__main__':
