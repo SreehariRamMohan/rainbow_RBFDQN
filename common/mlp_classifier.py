@@ -109,16 +109,16 @@ class BinaryMLPClassifier:
                 squeezed_logits = logits.squeeze()
             else:
                 squeezed_logits = torch.reshape(logits, (1,))
-            print("!!!!! Observations:", observations)
-            print("!!!!! Labels:", labels)
+            #print("!!!!! Observations:", observations)
+            #print("!!!!! Labels:", labels)
             if logits is not None:
-                print("!!!!! Logits shape", logits.shape)
+                #print("!!!!! Logits shape", logits.shape)
             if squeezed_logits is not None:
-                print("!!!!! Squeezed logits shape", squeezed_logits.shape)
+                #print("!!!!! Squeezed logits shape", squeezed_logits.shape)
             if pos_weight is not None:
-                print("!!!!! pos_weight shape", pos_weight.shape)
+                #print("!!!!! pos_weight shape", pos_weight.shape)
             if weights is not None:
-                print("!!!!! weights shape", weights.shape)
+                #print("!!!!! weights shape", weights.shape)
             loss = F.binary_cross_entropy_with_logits(squeezed_logits,
                                                       labels,
                                                       pos_weight=pos_weight,
