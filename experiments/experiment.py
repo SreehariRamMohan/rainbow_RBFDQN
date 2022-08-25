@@ -559,12 +559,12 @@ def main():
                 grasp_indices_tensor = torch.LongTensor(list(grasp_indices))
                 classifier_training_examples = env.cache_torch_state.index_select(0, grasp_indices_tensor)
 
-                print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
+                #print(";;;;;;;;;;;Now training with labels", classifier_training_labels)
                 if args.sample_method == "classifier_unweighted":
                     clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, n_epochs=10)
                 else:
                     W = get_weights(classifier_training_examples.to(Q_object.device), classifier_training_labels, Q_object).astype(float)
-                    print(";;;;;;;;;;;Generated classifier weights", W)
+                    #print(";;;;;;;;;;;Generated classifier weights", W)
                     clf.fit(classifier_training_examples.to(clf.device).float(), classifier_training_labels, W, n_epochs=10)
 
                 # Set weights for agent to draw new examples
@@ -575,7 +575,7 @@ def main():
                     #env.classifier_probs = numpy.ones(env.classifier_probs.shape)
                     env.classifier_probs[numpy.isnan(env.classifier_probs)] = 0
                 env.classifier_probs = softmax(env.classifier_probs)
-                print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
+                #print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
 
 def _clip(v):
     '''if isinstance(v, numpy.ndarray) or isinstance(v, torch.Tensor):
@@ -602,7 +602,7 @@ def compute_weights_unbatched(states, labels, values, threshold):
         else:
             flip_mass = state_value[state_value > threshold].sum()
         weights[i] = flip_mass / state_value.sum()
-        print("^^^^^^flip_mass, state_value", flip_mass, state_value.sum(), weights[i])
+        #print("^^^^^^flip_mass, state_value", flip_mass, state_value.sum(), weights[i])
     return weights
 
 def get_weights(states, labels, Q_object):
@@ -621,8 +621,8 @@ def get_weights(states, labels, Q_object):
     actions = Q_object.get_best_qvalue_and_action(states)[1]
     # shape: (num grasps, 200)
     value_distribution = Q_object.forward(states, actions).detach().cpu().numpy()
-    print("^^^^^^")
-    print("^^^^^^VD", value_distribution)
+    #print("^^^^^^")
+    #print("^^^^^^VD", value_distribution)
 
     '''# We have to mmake sure that the distribution and threshold are in the same units
     step_distribution = value2steps(value_distribution)
@@ -630,13 +630,13 @@ def get_weights(states, labels, Q_object):
 
     # Determine the threshold. It has units of # steps.
     threshold = numpy.median(value_distribution)  # TODO: This should be a percentile based on class ratios
-    print(f"Set the threshold to {threshold}")
-    print("^^^^^^Threshold", threshold)
+    #print(f"Set the threshold to {threshold}")
+    #print("^^^^^^Threshold", threshold)
 
     probabilities = compute_weights_unbatched(states, labels, value_distribution, threshold)
     weights = 1. / (probabilities + 1e-1)
-    print("^^^^^^Computed weights", weights)
-    print("^^^^^^")
+    #print("^^^^^^Computed weights", weights)
+    #print("^^^^^^")
     return weights
 
 if __name__ == '__main__':
