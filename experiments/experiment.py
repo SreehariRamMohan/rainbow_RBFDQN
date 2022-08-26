@@ -432,6 +432,7 @@ def main():
     steps_per_typical_episode = env_name_to_steps[params['env_name']]
 
     steps = 0
+    episodes = 0
 
     rewards_per_typical_episode = 0
 
@@ -450,7 +451,7 @@ def main():
     # Dictionary of labels, indexed by grasp index
     classifier_training_dict = {}
 
-    while (steps <  params['max_step']):
+    while (episodes <  params['max_num_episodes']):
 
         s, done, t = env.reset(), False, 0
 
@@ -542,6 +543,7 @@ def main():
 
             if (steps%1000 == 0):
                 print("step {}".format(steps))
+        episodes += 1
         # notify n-step that the episode has ended.
         if (params['nstep']):
             Q_object.buffer_object.storage.on_episode_end()

@@ -1,6 +1,7 @@
 env_name,Switch,string
 max_episode,1000,integer
 max_step,1000000,integer
+max_num_episodes,50000,integer
 num_layers,3,integer
 layer_size,512,integer
 num_layers_action_side,1,integer
