@@ -234,6 +234,10 @@ def main():
     utils.create_log_dir(full_experiment_name)
     hyperparams_dir = utils.create_log_dir(
         os.path.join(full_experiment_name, "hyperparams"))
+    classifier_prob_dir = None
+    if "classifier" in args.sample_method:
+        classifier_prob_dir = utils.create_log_dir(
+            os.path.join(full_experiment_name, "classifier_probs"))
     params = utils_for_q_learning.get_hyper_parameters(args.hyper_parameter_name, "rbf")
     params['hyper_parameters_name'] = args.hyper_parameter_name
     params['full_experiment_file_path'] = os.path.join(os.getcwd(), full_experiment_name)
@@ -577,6 +581,10 @@ def main():
                     #env.classifier_probs = numpy.ones(env.classifier_probs.shape)
                     env.classifier_probs[numpy.isnan(env.classifier_probs)] = 0
                 env.classifier_probs = softmax(env.classifier_probs)
+                if episodes % 1000 == 0:
+                    prob_output_file = classifier_prob_dir + "/cached_grasp_{}_prob_{}_seed_{}_episode_{}.npy".format(args.sample_method, args.task, args.seed, episodes)
+                    print("Now writing probabilities to", prob_output_file)
+                    np.save(prob_output_file, env.classifier_probs)
                 #print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
 
 def _clip(v):
