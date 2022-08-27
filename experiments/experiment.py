@@ -584,7 +584,7 @@ def main():
                 if episodes % 1000 == 0:
                     prob_output_file = classifier_prob_dir + "/cached_grasp_{}_prob_{}_seed_{}_episode_{}.npy".format(args.sample_method, args.task, args.seed, episodes)
                     print("Now writing probabilities to", prob_output_file)
-                    np.save(prob_output_file, env.classifier_probs)
+                    numpy.save(prob_output_file, env.classifier_probs)
                 #print(";;;;;;;;;;;;;;Computed probabilities", env.classifier_probs)
 
 def _clip(v):
